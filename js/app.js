@@ -321,6 +321,7 @@ window.App = window.App || {};
     });
 
     document.addEventListener('keydown', function (e) {
+      if (document.querySelector('dialog[open], .modal-overlay:not(.hidden)')) return;
       var mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === 'n') { e.preventDefault(); App.createNote(); }
       if (mod && e.key === 's') { e.preventDefault(); if (state.saveTimeout) { clearTimeout(state.saveTimeout); App.doAutoSave(); } }

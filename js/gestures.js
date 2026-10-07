@@ -11,7 +11,7 @@ window.App = window.App || {};
   var ignoredTargets = 'a, button, input, textarea, select, option, label, form, pre, code, table, summary, [contenteditable]:not([contenteditable="false"]), [role="button"], [role="link"], [role="slider"], [data-no-note-swipe]';
 
   function modalOpen() {
-    return !!document.querySelector('.modal-overlay:not(.hidden), dialog[open], [role="dialog"]:not(.hidden):not([aria-hidden="true"])');
+    return !!document.querySelector('.modal-overlay:not(.hidden):not([hidden]), dialog[open], [role="dialog"]:not(.hidden):not([hidden]):not([aria-hidden="true"])');
   }
 
   function previewOpen() {
@@ -21,6 +21,11 @@ window.App = window.App || {};
   function selectedText() {
     var selection = window.getSelection && window.getSelection();
     return !!selection && selection.isCollapsed === false;
+  }
+
+  function touchAvailable() {
+    return !!(window.navigator && window.navigator.maxTouchPoints > 0 ||
+      window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   }
 
   function ignoredTarget(target) {
@@ -69,7 +74,7 @@ window.App = window.App || {};
       refs.hint.textContent = !visible ? '' : adjacent.index < 0
         ? 'Current note is outside this search.'
         : 'Note ' + (adjacent.index + 1) + ' of ' + adjacent.notes.length +
-          (manager && adjacent.notes.length > 1 ? ' · Swipe left or right to change notes' : '');
+          (manager && touchAvailable() && adjacent.notes.length > 1 ? ' · Swipe left or right to change notes' : '');
     }
   };
 
