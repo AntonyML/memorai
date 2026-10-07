@@ -29,6 +29,7 @@ only on domain data/geometry; rendering never imports UI. Theme tokens inherit
 the app's `data-theme` variables, with graph-specific contrast-safe overrides.
 System fonts avoid adding network resources. Only the modal can scroll; the graph
 surface uses pan/zoom. Labels appear on hover/focus or above 120% zoom.
+Resizing refits an automatically fitted map; a manually chosen camera is preserved.
 
 ## Try it
 

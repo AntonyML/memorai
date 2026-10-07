@@ -52,6 +52,9 @@ test('fit includes all box bounds and resize preserves graph center', () => {
   viewport.resize(1000, 600);
   assert.equal(viewport.camera.x, initial.x + 100);
   assert.equal(viewport.camera.y, initial.y + 100);
+  viewport.fit({ x: 0, y: 0, width: 100000, height: 50000 });
+  assert.ok(viewport.camera.scale < 0.01);
+  assert.ok(100000 * viewport.camera.scale <= 936);
 });
 
 test('adapter preserves semantic directions and parallel links while ignoring missing endpoints', () => {

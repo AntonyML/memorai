@@ -30,9 +30,10 @@ export function mountConnections(container, options) {
   const store = new Store(), history = new HistoryManager(), runner = new LayoutRunner();
   const renderer = createRenderer(graphElement, { navigate: options.navigate }, lifetime.signal);
   /** @type {AbortController | null} */ let animation = null;
-  let generation = 0, signature = '', destroyed = false;
+  let generation = 0, signature = '', destroyed = false, fitOnResize = true;
   /** @type {Snapshot | null} */ let dragSnapshot = null;
-  const toolbar = createToolbar({ layout: () => { void arrange(true); }, zoom: factor => viewport.zoom(factor), fit, undo: () => restore('undo'), redo: () => restore('redo') }, lifetime.signal);
+  const zoom = (/** @type {number} */ factor) => { fitOnResize = false; viewport.zoom(factor); };
+  const toolbar = createToolbar({ layout: () => { void arrange(true); }, zoom, fit, undo: () => restore('undo'), redo: () => restore('redo') }, lifetime.signal);
   const legend = container.querySelector('.graph-legend');
   if (legend) legend.before(toolbar.element); else graphElement.before(toolbar.element);
   const viewport = new Viewport(renderer.svg, camera => {
@@ -48,6 +49,7 @@ export function mountConnections(container, options) {
     status.textContent = `${store.graph.nodes.length} notes · ${store.graph.edges.length} direct links`;
   }
   function fit() {
+    fitOnResize = true;
     if (!Object.keys(store.positions).length) return;
     const boxes = boundsFor(store.graph, store.positions);
     // Curved parallel edges may extend beyond the card bounds.
@@ -61,7 +63,7 @@ export function mountConnections(container, options) {
   function restore(direction) {
     stop();
     const next = direction === 'undo' ? history.undo(snapshot()) : history.redo(snapshot());
-    if (next) { store.setPositions(next.positions); viewport.restore(next.camera); }
+    if (next) { fitOnResize = false; store.setPositions(next.positions); viewport.restore(next.camera); }
     updateHistory();
   }
   /** @param {boolean} remember */
@@ -113,12 +115,12 @@ export function mountConnections(container, options) {
   }
   bindPointers(renderer.svg, viewport, {
     positions: () => store.positions,
-    start: id => { if (Object.keys(store.positions).length) stop(); dragSnapshot = id ? snapshot() : null; },
+    start: id => { fitOnResize = false; if (Object.keys(store.positions).length) stop(); dragSnapshot = id ? snapshot() : null; },
     move: (id, point) => { store.setPositions({ ...store.positions, [id]: point }); renderer.highlight(id); },
     end: (changed, id) => {
       if (changed && id && dragSnapshot) { history.push(dragSnapshot); updateHistory(); }
       dragSnapshot = null;
-    }, activate: options.navigate, highlight: id => renderer.highlight(id)
+    }, activate: options.navigate, highlight: id => renderer.highlight(id), viewChange: () => { fitOnResize = false; }
   }, lifetime.signal);
   bindKeyboard(container, renderer.svg, {
     graph: () => store.graph, positions: () => store.positions,
@@ -126,7 +128,7 @@ export function mountConnections(container, options) {
       const node = store.graph.nodes.find(candidate => candidate.id === id), point = store.positions[id];
       if (node && point) viewport.reveal(point, node.width, node.height);
       renderer.focusNode(id);
-    }, activate: options.navigate, zoom: factor => viewport.zoom(factor), fit,
+    }, activate: options.navigate, zoom, fit,
     undo: () => restore('undo'), redo: () => restore('redo'), highlight: id => renderer.highlight(id)
   }, lifetime.signal);
   focus.addEventListener('change', () => refresh(true), { signal: lifetime.signal });
@@ -137,6 +139,7 @@ export function mountConnections(container, options) {
     const entry = entries[0];
     if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
     viewport.resize(entry.contentRect.width, entry.contentRect.height);
+    if (fitOnResize) fit();
   });
   resize.observe(graphElement);
   return {

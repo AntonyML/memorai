@@ -34,6 +34,6 @@ export function createToolbar(actions, signal) {
     /** @param {boolean} value */ setBusy(value) { busy = value; update(); },
     /** @param {boolean} value */ setEmpty(value) { empty = value; update(); },
     /** @param {boolean} canUndo @param {boolean} canRedo */ setHistory(canUndo, canRedo) { hasUndo = canUndo; hasRedo = canRedo; update(); },
-    /** @param {number} scale */ setZoom(scale) { zoom.value = Math.round(scale * 100) + '%'; }
+    /** @param {number} scale */ setZoom(scale) { zoom.value = (scale < 0.01 ? (scale * 100).toFixed(1) : Math.round(scale * 100)) + '%'; }
   };
 }

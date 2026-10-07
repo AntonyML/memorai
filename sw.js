@@ -1,7 +1,7 @@
 var CACHE = 'memorai-v0.3.2';
 var URLS = [
   // Cache the complete Connections module, styles and worker for first-use offline.
-  // Keep graph geometry and contrast tokens in the same offline snapshot as the UI.
+  // Includes responsive fitting, semantic curves and contrast-safe theme tokens.
   '/',
   'index.html',
   'css/style.css',

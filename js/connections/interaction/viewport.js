@@ -14,7 +14,7 @@ export class Viewport {
   get camera() { return { ...this.#camera }; }
   /** @param {Camera} camera */
   restore(camera) {
-    this.#camera = { ...camera, scale: Math.max(0.08, Math.min(3, camera.scale)) };
+    this.#camera = { ...camera, scale: Math.max(0.001, Math.min(3, camera.scale)) };
     this.#change(this.camera);
   }
   /** @param {number} width @param {number} height */
@@ -38,7 +38,7 @@ export class Viewport {
   }
   /** @param {number} factor @param {Point} [anchor] */
   zoom(factor, anchor = { x: this.#width / 2, y: this.#height / 2 }) {
-    const scale = Math.max(0.08, Math.min(3, this.#camera.scale * factor));
+    const scale = Math.max(0.001, Math.min(3, this.#camera.scale * factor));
     const ratio = scale / this.#camera.scale;
     this.restore({ x: anchor.x - (anchor.x - this.#camera.x) * ratio, y: anchor.y - (anchor.y - this.#camera.y) * ratio, scale });
   }
@@ -46,7 +46,7 @@ export class Viewport {
   pan(dx, dy) { this.restore({ ...this.#camera, x: this.#camera.x + dx, y: this.#camera.y + dy }); }
   /** @param {Bounds} bounds @param {number} [padding] */
   fit(bounds, padding = 32) {
-    const scale = Math.max(0.08, Math.min(1, Math.max(1, this.#width - padding * 2) / Math.max(1, bounds.width), Math.max(1, this.#height - padding * 2) / Math.max(1, bounds.height)));
+    const scale = Math.max(0.001, Math.min(1, Math.max(1, this.#width - padding * 2) / Math.max(1, bounds.width), Math.max(1, this.#height - padding * 2) / Math.max(1, bounds.height)));
     this.restore({ x: this.#width / 2 - (bounds.x + bounds.width / 2) * scale, y: this.#height / 2 - (bounds.y + bounds.height / 2) * scale, scale });
   }
   /** @param {Point} point @param {number} width @param {number} height */

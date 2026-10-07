@@ -1,7 +1,7 @@
 // @ts-check
 import { Viewport } from './viewport.js';
 /** @typedef {import('../types.js').Point} Point */
-/** @typedef {{positions: () => import('../types.js').Positions, start: (id: string | null) => void, move: (id: string, point: Point) => void, end: (changed: boolean, id: string | null) => void, activate: (id: string) => void, highlight: (id: string | null) => void}} PointerCallbacks */
+/** @typedef {{positions: () => import('../types.js').Positions, start: (id: string | null) => void, move: (id: string, point: Point) => void, end: (changed: boolean, id: string | null) => void, activate: (id: string) => void, highlight: (id: string | null) => void, viewChange: () => void}} PointerCallbacks */
 
 /** @param {EventTarget | null} target */
 export function nodeId(target) {
@@ -89,6 +89,7 @@ export function bindPointers(svg, viewport, callbacks, signal) {
   svg.addEventListener('pointerleave', () => { if (!pointers.size) callbacks.highlight(null); }, options);
   svg.addEventListener('wheel', event => {
     event.preventDefault();
+    callbacks.viewChange();
     const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? svg.getBoundingClientRect().height : 1;
     const delta = Math.max(-120, Math.min(120, event.deltaY * units));
     viewport.zoom(Math.exp(-delta * 0.0025), viewport.screen(event.clientX, event.clientY));
