@@ -1,6 +1,6 @@
 // @ts-check
 
-import { adjacency, BOX_GAP, clearOverlaps, compareId, crossingCount, stableRoot, totalEdgeLength } from './shared.js';
+import { adjacency, BOX_GAP, boxesOverlap, clearOverlaps, compareId, crossingCount, edgeNodeIncidenceCount, stableRoot, totalEdgeLength } from './shared.js';
 
 /** @typedef {import('../types.js').Graph} Graph */
 /** @typedef {import('../types.js').GraphNode} GraphNode */
@@ -26,6 +26,97 @@ function placeRings(rings, radii, rotations) {
         }
     }
     return positions;
+}
+
+/** Barycenters alone can leave same-ring chords trapped in a poor circular order.
+ * For small graphs, relax individual angles and score crossings/card obstructions.
+ * A fixed evaluation budget keeps Worker/fallback results identical and bounded.
+ * @param {Graph} graph @param {string[][]} initialRings @param {number[]} radii
+ * @param {number[]} initialRotations @returns {Positions}
+ */
+function refineSmallGraph(graph, initialRings, radii, initialRotations) {
+    let best = placeRings(initialRings, radii, initialRotations);
+    let bestCrossings = crossingCount(graph, best);
+    let bestObstructions = edgeNodeIncidenceCount(graph, best);
+    let bestLength = totalEdgeLength(graph, best);
+    if (graph.nodes.length > 20 || graph.edges.length > 64 || initialRings.length < 2) return best;
+    const movable = initialRings.slice(1).flat();
+    const levels = movable.map(id => initialRings.findIndex(ring => ring.includes(id)));
+    const baseAngles = movable.map(id => Math.atan2(best[id].y, best[id].x));
+    const root = initialRings[0][0];
+    let state = 0x6d656d6f;
+    const random = () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 4294967296;
+    };
+    /** @param {number[]} angles @param {number} scale @returns {Positions} */
+    function placeAngles(angles, scale) {
+        /** @type {Positions} */
+        const positions = { [root]: { x: 0, y: 0 } };
+        for (let index = 0; index < movable.length; index++) {
+            const radius = radii[levels[index]] * scale;
+            positions[movable[index]] = { x: Math.cos(angles[index]) * radius, y: Math.sin(angles[index]) * radius };
+        }
+        return positions;
+    }
+    /** @param {Positions} positions */
+    function separated(positions) {
+        for (let i = 0; i < graph.nodes.length; i++) {
+            for (let j = i + 1; j < graph.nodes.length; j++) {
+                if (boxesOverlap(graph.nodes[i], positions[graph.nodes[i].id], graph.nodes[j], positions[graph.nodes[j].id], BOX_GAP)) return false;
+            }
+        }
+        return true;
+    }
+    const lengthScale = Math.max(1, bestLength);
+    const iterations = graph.nodes.length > 12 ? 600 : 1200;
+    // Fixed-seed angular search can leave a local crossing minimum without
+    // changing BFS distance. Extra ring space permits nonuniform card angles.
+    // Passing through another card is penalized as well as crossing another edge.
+    for (const scale of [1, 1.25, 1.6]) {
+        let angles = baseAngles.slice();
+        const positions = placeAngles(angles, scale);
+        const crossings = crossingCount(graph, positions);
+        const obstructions = edgeNodeIncidenceCount(graph, positions);
+        const length = totalEdgeLength(graph, positions);
+        let energy = crossings + obstructions * 3 + length / lengthScale * 0.1;
+        for (let iteration = 0; iteration < iterations; iteration++) {
+            const candidate = angles.slice();
+            const index = Math.floor(random() * movable.length);
+            const operation = random();
+            if (operation < 0.2) {
+                const other = Math.floor(random() * movable.length);
+                if (levels[index] !== levels[other] || index === other) continue;
+                [candidate[index], candidate[other]] = [candidate[other], candidate[index]];
+            } else if (operation < 0.28) {
+                const pivot = random() * TAU;
+                candidate.forEach((angle, i) => { if (levels[i] === levels[index]) candidate[i] = pivot - angle; });
+            } else {
+                const amplitude = 0.75 * (1 - iteration / iterations) + 0.05;
+                candidate[index] += (random() * 2 - 1) * amplitude;
+            }
+            const next = placeAngles(candidate, scale);
+            if (!separated(next)) continue;
+            const nextCrossings = crossingCount(graph, next);
+            const nextObstructions = edgeNodeIncidenceCount(graph, next);
+            const nextLength = totalEdgeLength(graph, next);
+            const nextEnergy = nextCrossings + nextObstructions * 3 + nextLength / lengthScale * 0.1;
+            const bestScore = bestCrossings + bestObstructions * 3;
+            const nextScore = nextCrossings + nextObstructions * 3;
+            if (nextScore < bestScore || (nextScore === bestScore && nextLength < bestLength - 1e-6)) {
+                best = next;
+                bestCrossings = nextCrossings;
+                bestObstructions = nextObstructions;
+                bestLength = nextLength;
+            }
+            const temperature = 1.6 * Math.pow(0.012, iteration / (iterations - 1));
+            if (nextEnergy <= energy || random() < Math.exp((energy - nextEnergy) / temperature)) {
+                angles = candidate;
+                energy = nextEnergy;
+            }
+        }
+    }
+    return best;
 }
 
 /** Breadth-first distance is the radial level. Bounding circles make both
@@ -124,5 +215,5 @@ export function smartLayout(graph) {
     }
     rings = bestRings;
     rotations = bestRotations;
-    return clearOverlaps(graph, placeRings(rings, radii, rotations));
+    return clearOverlaps(graph, refineSmallGraph(graph, rings, radii, rotations));
 }

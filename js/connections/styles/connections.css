@@ -71,7 +71,7 @@
 }
 
 .connections-dialog select.connections-tool { padding-right: 28px; }
-.connections-dialog .connections-tool:hover:not(:disabled) { background-color: var(--bg-hover); border-color: var(--connections-violet); }
+.connections-dialog .connections-tool:hover:not(:disabled) { background-color: var(--connections-badge); border-color: var(--connections-violet); }
 .connections-dialog .connections-tool:disabled { opacity: .46; cursor: default; }
 .connections-dialog .connections-tool-primary,
 .connections-dialog .connections-auto-layout,
@@ -156,7 +156,8 @@
 .connections-dialog .graph-node.is-highlighted .graph-node-card,
 .connections-dialog .graph-node.is-selected .graph-node-card { stroke: var(--connections-violet); stroke-width: 2; }
 .connections-dialog .graph-node:focus-visible .graph-node-focus-ring { visibility: visible; }
-.connections-dialog .graph-node.is-muted { opacity: .32; }
+.connections-dialog .graph-node.is-muted .graph-node-card { stroke: var(--connections-border); filter: none; }
+.connections-dialog .graph-node.is-muted .graph-node-accent { visibility: hidden; }
 .connections-dialog .graph-node-title { fill: var(--connections-text); font-size: 14px; font-weight: 600; }
 .connections-dialog .graph-node .graph-node-badge-bg { fill: var(--connections-badge); stroke: none; filter: none; }
 .connections-dialog .graph-node-badge-icon { fill: none; stroke: var(--connections-text); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -165,9 +166,34 @@
 .connections-dialog .graph-note-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
 .connections-dialog .graph-note-row { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; border: 1px solid var(--connections-border); border-radius: 9px; background: var(--connections-surface); padding: 5px; }
 .connections-dialog .graph-note-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; color: var(--connections-violet); font-size: 13px; line-height: 1.5; }
+.connections-dialog .graph-note-button:hover { background: var(--connections-badge); color: var(--connections-violet); }
 .connections-dialog .graph-path { padding: 0 10px 5px; }
 .connections-dialog button:focus-visible,
 .connections-dialog select:focus-visible { outline: 3px solid var(--connections-violet); outline-offset: 2px; }
+
+.connections-dialog .connections-fullscreen { margin-left: auto; }
+
+/* Graph-only (full page) view */
+.connections-dialog.connections-graph-only {
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+.connections-dialog.connections-graph-only .modal-header,
+.connections-dialog.connections-graph-only .connection-hint,
+.connections-dialog.connections-graph-only .graph-controls,
+.connections-dialog.connections-graph-only .graph-legend,
+.connections-dialog.connections-graph-only .graph-note-list { display: none; }
+.connections-dialog.connections-graph-only .connections-dialog-body { box-sizing: border-box; height: 100%; padding: 12px; }
+.connections-dialog.connections-graph-only .knowledge-graph { flex: 1 1 auto; height: auto; min-height: 0; }
+.connections-dialog.connections-graph-only .connections-fullscreen { background: var(--connections-violet); border-color: var(--connections-violet); color: var(--connections-canvas); font-weight: 600; }
 
 @media (max-width: 768px) {
   .connections-dialog { width: calc(100% - 16px); max-height: 94vh; max-height: 94dvh; }

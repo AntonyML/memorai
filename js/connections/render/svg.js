@@ -142,18 +142,28 @@ export function createRenderer(container, _callbacks, signal) {
     const tabStop = focusedId ?? value.focus ?? value.nodes[0]?.id;
     for (const [id, view] of nodes) view.group.setAttribute('tabindex', id === tabStop ? '0' : '-1');
     empty.style.display = value.nodes.length ? 'none' : '';
+    // A worker may take a frame or more: cards must wait for their new coordinates.
+    render({});
     updateAppearance();
   }
 
   /** @param {Positions} value */
   function render(value) {
     positions = value;
+    const positionedIds = new Set(graph.nodes.filter(node => {
+      const point = value[node.id];
+      return Object.hasOwn(value, node.id) && point && Number.isFinite(point.x) && Number.isFinite(point.y);
+    }).map(node => node.id));
     for (const [id, view] of nodes) {
       const point = value[id];
-      if (point) view.group.setAttribute('transform', `translate(${point.x} ${point.y})`);
-      view.group.style.display = point ? '' : 'none';
+      if (positionedIds.has(id)) view.group.setAttribute('transform', `translate(${point.x} ${point.y})`);
+      view.group.style.display = positionedIds.has(id) ? '' : 'none';
     }
-    routes = routeEdges(graph, value);
+    routes = routeEdges({
+      ...graph,
+      nodes: graph.nodes.filter(node => positionedIds.has(node.id)),
+      edges: graph.edges.filter(edge => positionedIds.has(edge.source) && positionedIds.has(edge.target))
+    }, value);
     const routedIds = new Set(routes.map(route => route.edge.id));
     for (const [id, view] of edges) view.group.style.display = routedIds.has(id) ? '' : 'none';
     for (const route of routes) edges.get(route.edge.id)?.update(route);

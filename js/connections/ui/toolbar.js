@@ -1,5 +1,5 @@
 // @ts-check
-/** @typedef {{layout: () => void, zoom: (factor: number) => void, fit: () => void, undo: () => void, redo: () => void}} ToolbarActions */
+/** @typedef {{layout: () => void, zoom: (factor: number) => void, fit: () => void, undo: () => void, redo: () => void, fullscreen: () => void}} ToolbarActions */
 
 /** @param {ToolbarActions} actions @param {AbortSignal} signal */
 export function createToolbar(actions, signal) {
@@ -23,6 +23,7 @@ export function createToolbar(actions, signal) {
   const zoom = document.createElement('output'); zoom.className = 'connections-zoom'; zoom.setAttribute('aria-label', 'Zoom level'); element.append(zoom);
   const zoomIn = button('Zoom in', () => actions.zoom(1.2), '+');
   const fit = button('Fit', actions.fit);
+  const fullscreen = button('Full screen', actions.fullscreen); fullscreen.classList.add('connections-fullscreen');
   let busy = false, hasUndo = false, hasRedo = false, empty = false;
   const update = () => {
     layout.disabled = busy || empty; mode.disabled = busy || empty;
@@ -30,10 +31,15 @@ export function createToolbar(actions, signal) {
     fit.disabled = empty; zoomIn.disabled = empty; zoomOut.disabled = empty;
     layout.textContent = busy ? 'Arranging…' : 'Auto Layout';
   };
-  return { element, mode, layout,
+  return { element, mode, layout, fullscreen,
     /** @param {boolean} value */ setBusy(value) { busy = value; update(); },
     /** @param {boolean} value */ setEmpty(value) { empty = value; update(); },
     /** @param {boolean} canUndo @param {boolean} canRedo */ setHistory(canUndo, canRedo) { hasUndo = canUndo; hasRedo = canRedo; update(); },
-    /** @param {number} scale */ setZoom(scale) { zoom.value = (scale < 0.01 ? (scale * 100).toFixed(1) : Math.round(scale * 100)) + '%'; }
+    /** @param {number} scale */ setZoom(scale) { zoom.value = (scale < 0.01 ? (scale * 100).toFixed(1) : Math.round(scale * 100)) + '%'; },
+    /** @param {boolean} value */ setFullscreen(value) {
+      const title = value ? 'Exit full screen' : 'Full screen';
+      fullscreen.textContent = title; fullscreen.setAttribute('aria-label', title);
+      fullscreen.title = value ? 'Exit full screen (Esc)' : title;
+    }
   };
 }

@@ -193,3 +193,48 @@ export function totalEdgeLength(graph, positions) {
         positions[edge.source].y - positions[edge.target].y
     ), 0);
 }
+
+/** Count straight-edge/card obstructions independently of crossings. Shared
+ * endpoints are excluded; center-segment intersections conservatively include
+ * rounded corners so the layout never rewards passing through a third card.
+ * @param {Graph} graph @param {Positions} positions @returns {number}
+ */
+export function edgeNodeIncidenceCount(graph, positions) {
+    let count = 0;
+    for (const edge of graph.edges) {
+        const source = positions[edge.source];
+        const target = positions[edge.target];
+        for (const node of graph.nodes) {
+            if (node.id === edge.source || node.id === edge.target) continue;
+            const center = positions[node.id];
+            const halfWidth = node.width / 2;
+            const halfHeight = node.height / 2;
+            const left = center.x - halfWidth;
+            const right = center.x + halfWidth;
+            const top = center.y - halfHeight;
+            const bottom = center.y + halfHeight;
+            if (Math.max(source.x, target.x) <= left || Math.min(source.x, target.x) >= right
+                || Math.max(source.y, target.y) <= top || Math.min(source.y, target.y) >= bottom) continue;
+            let minimum = 0;
+            let maximum = 1;
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            if (Math.abs(dx) > 1e-8) {
+                const a = (left - source.x) / dx;
+                const b = (right - source.x) / dx;
+                minimum = Math.max(minimum, Math.min(a, b));
+                maximum = Math.min(maximum, Math.max(a, b));
+                if (minimum >= maximum - 1e-8) continue;
+            }
+            if (Math.abs(dy) > 1e-8) {
+                const a = (top - source.y) / dy;
+                const b = (bottom - source.y) / dy;
+                minimum = Math.max(minimum, Math.min(a, b));
+                maximum = Math.min(maximum, Math.max(a, b));
+                if (minimum >= maximum - 1e-8) continue;
+            }
+            if (maximum > 0 && minimum < 1) count++;
+        }
+    }
+    return count;
+}

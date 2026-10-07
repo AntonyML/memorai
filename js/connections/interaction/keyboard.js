@@ -10,13 +10,15 @@ export function bindKeyboard(dialog, svg, callbacks, signal) {
     if (!(event.relatedTarget instanceof Node) || !svg.contains(event.relatedTarget)) callbacks.highlight(null);
   }, { signal });
   dialog.addEventListener('keydown', event => {
-    if (event.target instanceof Element && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;
+    if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]')) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault(); event.shiftKey ? callbacks.redo() : callbacks.undo(); return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
       event.preventDefault(); callbacks.redo(); return;
     }
+    // Selectors have no text history, but retain their native navigation keys.
+    if (event.target instanceof Element && event.target.closest('select')) return;
     if (event.key === '+' || event.key === '=') { event.preventDefault(); callbacks.zoom(1.2); return; }
     if (event.key === '-' || event.key === '_') { event.preventDefault(); callbacks.zoom(1 / 1.2); return; }
     if (event.key === '0') { event.preventDefault(); callbacks.fit(); return; }

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { layoutGraph } from '../../js/connections/layout/index.js';
-import { boxesOverlap, crossingCount, clearOverlaps } from '../../js/connections/layout/shared.js';
+import { boxesOverlap, crossingCount, clearOverlaps, edgeNodeIncidenceCount } from '../../js/connections/layout/shared.js';
 
 /** @typedef {import('../../js/connections/types.js').Graph} Graph */
 /** @typedef {import('../../js/connections/types.js').GraphNode} GraphNode */
@@ -173,4 +173,52 @@ test('large radial star preserves every distance and separates all 501 real node
     const radius = distance(result.positions, 'root', nodes[1].id);
     for (const item of nodes.slice(1)) assert.ok(Math.abs(distance(result.positions, 'root', item.id) - radius) < 1e-6);
     assertNoOverlap(graph, result.positions);
+});
+
+test('real ten-note topology removes card obstructions while improving the first Smart ordering', () => {
+    // Anonymized 10-node/21-edge focus topology; a=context, b=skills project,
+    // c=web project, d=operating context, e=focus, f=reference, g=proposal,
+    // h/i/j=skills. Dimensions retain the measured title/card variation.
+    const widths = [256, 252, 256, 230, 256, 256, 252, 238, 234, 252];
+    /** @type {Graph} */
+    const graph = {
+        nodes: 'abcdefghij'.split('').map((id, index) => node(id, widths[index], 96)),
+        edges: [
+            edge('d', 'a'), edge('d', 'f', 'related'), edge('f', 'a', 'related'),
+            edge('e', 'd'), edge('e', 'f', 'related'), edge('b', 'd'), edge('b', 'f', 'related'),
+            edge('c', 'd'), edge('c', 'e', 'related'), edge('c', 'f', 'related'),
+            edge('h', 'b'), edge('h', 'e', 'related'), edge('j', 'b'), edge('j', 'f', 'related'),
+            edge('i', 'b'), edge('i', 'e', 'related'), edge('g', 'd'), edge('g', 'b', 'related'),
+            edge('g', 'c', 'related'), edge('g', 'e', 'related'), edge('g', 'f', 'related')
+        ], focus: 'e'
+    };
+    const result = layoutGraph(graph, 'smart');
+    assert.ok(crossingCount(graph, result.positions) <= 7, 'initial circular barycenter layout had 8 crossings');
+    assert.equal(edgeNodeIncidenceCount(graph, result.positions), 0);
+    assertNoOverlap(graph, result.positions);
+    const first = distance(result.positions, 'e', 'c');
+    for (const id of ['d', 'f', 'g', 'h', 'i']) assert.ok(Math.abs(distance(result.positions, 'e', id) - first) < 1e-6);
+    const second = distance(result.positions, 'e', 'a');
+    for (const id of ['b', 'j']) assert.ok(Math.abs(distance(result.positions, 'e', id) - second) < 1e-6);
+    assert.ok(second > first);
+    assert.deepEqual(layoutGraph({ ...graph, nodes: graph.nodes.slice().reverse(), edges: graph.edges.slice().reverse() }, 'smart'), result);
+
+    /** @type {Positions} */
+    const legacy = { e: { x: 116, y: 306 } };
+    ['d', 'f', 'c', 'h', 'i', 'g'].forEach((id, index) => { legacy[id] = { x: 390, y: 24 + 564 * (index + 0.5) / 6 }; });
+    ['a', 'b', 'j'].forEach((id, index) => { legacy[id] = { x: 664, y: 24 + 564 * (index + 0.5) / 3 }; });
+    const legacyGraph = { ...graph, nodes: graph.nodes.map(item => ({ ...item, width: 184, height: 60 })) };
+    assert.equal(crossingCount(legacyGraph, legacy), 4);
+    assert.ok(edgeNodeIncidenceCount(legacyGraph, legacy) >= 10, 'column BFS can hide collisions behind its crossing metric');
+    assert.ok(crossingCount(graph, result.positions) + 3 * edgeNodeIncidenceCount(graph, result.positions)
+        < crossingCount(legacyGraph, legacy) + 3 * edgeNodeIncidenceCount(legacyGraph, legacy));
+});
+
+test('edge/card incidence metric counts collinear card passages and ignores endpoints', () => {
+    /** @type {Graph} */
+    const graph = { nodes: [node('a'), node('b'), node('c')], edges: [edge('a', 'c')], focus: null };
+    const blocked = { a: { x: 0, y: 0 }, b: { x: 300, y: 0 }, c: { x: 600, y: 0 } };
+    assert.equal(crossingCount(graph, blocked), 0);
+    assert.equal(edgeNodeIncidenceCount(graph, blocked), 1);
+    assert.equal(edgeNodeIncidenceCount(graph, { ...blocked, b: { x: 300, y: 200 } }), 0);
 });

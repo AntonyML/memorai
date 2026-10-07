@@ -6,6 +6,7 @@ import { adaptGraph } from '../../js/connections/adapters/app.js';
 import { adjacency, pathsFrom } from '../../js/connections/domain/graph.js';
 import { tween } from '../../js/connections/animation/tween.js';
 import { LayoutRunner } from '../../js/connections/state/layoutRunner.js';
+import { bindKeyboard } from '../../js/connections/interaction/keyboard.js';
 
 const snapshot = x => ({ positions: { a: { x, y: 0 } }, camera: { x: 12, y: 34, scale: 0.5 } });
 
@@ -113,5 +114,55 @@ test('large graphs use a module worker and ignore results from canceled requests
     const canceled = runner.run(graph, 'layered'); runner.cancel(); assert.equal(await canceled, null);
   } finally {
     if (original) globalThis.Worker = original; else delete globalThis.Worker;
+  }
+});
+
+test('layout selectors allow graph undo and redo while preserving native control keys', () => {
+  const original = globalThis.Element;
+  class Control {
+    constructor(selector) { this.selector = selector; }
+    closest(selectors) { return selectors.split(',').some(selector => selector.trim() === this.selector) ? this : null; }
+  }
+  globalThis.Element = Control;
+  const lifetime = new AbortController();
+  try {
+    const dialog = new EventTarget(), svg = new EventTarget();
+    const history = new HistoryManager();
+    history.push(snapshot(0));
+    let current = snapshot(100), zooms = 0, fits = 0, activations = 0;
+    bindKeyboard(dialog, svg, {
+      graph: () => ({ nodes: [], edges: [], focus: null }), positions: () => current.positions,
+      undo: () => { current = history.undo(current) || current; },
+      redo: () => { current = history.redo(current) || current; },
+      zoom: () => zooms++, fit: () => fits++, activate: () => activations++, focus() {}, highlight() {}
+    }, lifetime.signal);
+    const press = (target, key, modifiers = {}) => {
+      const event = new Event('keydown', { cancelable: true });
+      for (const [name, value] of Object.entries({ target, key, ctrlKey: false, metaKey: false, shiftKey: false, ...modifiers })) {
+        Object.defineProperty(event, name, { value });
+      }
+      dialog.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const select = new Control('select');
+    assert.equal(press(select, 'z', { ctrlKey: true }), true);
+    assert.equal(current.positions.a.x, 0);
+    assert.equal(press(select, 'z', { ctrlKey: true, shiftKey: true }), true);
+    assert.equal(current.positions.a.x, 100);
+    assert.equal(press(select, 'z', { metaKey: true }), true);
+    assert.equal(current.positions.a.x, 0);
+    assert.equal(press(select, 'z', { metaKey: true, shiftKey: true }), true);
+    assert.equal(current.positions.a.x, 100);
+    for (const key of ['ArrowDown', '+', '-', '0', 'Enter']) assert.equal(press(select, key), false);
+    assert.equal(zooms + fits + activations, 0);
+    for (const selector of ['input', 'textarea', '[contenteditable="true"]']) {
+      const control = new Control(selector);
+      assert.equal(press(control, 'z', { ctrlKey: true }), false);
+      assert.equal(press(control, 'z', { metaKey: true, shiftKey: true }), false);
+      assert.equal(current.positions.a.x, 100, `Text editing in ${selector} must not change graph history`);
+    }
+  } finally {
+    lifetime.abort();
+    if (original) globalThis.Element = original; else delete globalThis.Element;
   }
 });

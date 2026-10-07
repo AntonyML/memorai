@@ -30,10 +30,18 @@ export function mountConnections(container, options) {
   const store = new Store(), history = new HistoryManager(), runner = new LayoutRunner();
   const renderer = createRenderer(graphElement, { navigate: options.navigate }, lifetime.signal);
   /** @type {AbortController | null} */ let animation = null;
-  let generation = 0, signature = '', destroyed = false, fitOnResize = true;
+  let generation = 0, signature = '', destroyed = false, fitOnResize = true, expanded = false;
   /** @type {Snapshot | null} */ let dragSnapshot = null;
+  /** Graph-only view: the dialog fills the viewport and hides everything except the toolbar and canvas. */
+  function setExpanded(/** @type {boolean} */ value) {
+    if (expanded === value) return;
+    expanded = value; fitOnResize = true;
+    container.classList.toggle('connections-graph-only', value);
+    if (value) container.scrollTop = 0;
+    toolbar.setFullscreen(value);
+  }
   const zoom = (/** @type {number} */ factor) => { fitOnResize = false; viewport.zoom(factor); };
-  const toolbar = createToolbar({ layout: () => { void arrange(true); }, zoom, fit, undo: () => restore('undo'), redo: () => restore('redo') }, lifetime.signal);
+  const toolbar = createToolbar({ layout: () => { void arrange(true); }, zoom, fit, undo: () => restore('undo'), redo: () => restore('redo'), fullscreen: () => setExpanded(!expanded) }, lifetime.signal);
   const legend = container.querySelector('.graph-legend');
   if (legend) legend.before(toolbar.element); else graphElement.before(toolbar.element);
   const viewport = new Viewport(renderer.svg, camera => {
@@ -134,7 +142,11 @@ export function mountConnections(container, options) {
   focus.addEventListener('change', () => refresh(true), { signal: lifetime.signal });
   depth.addEventListener('change', () => refresh(true), { signal: lifetime.signal });
   toolbar.mode.addEventListener('change', () => { void arrange(true); }, { signal: lifetime.signal });
-  container.addEventListener('close', () => stop(), { signal: lifetime.signal });
+  container.addEventListener('close', () => { stop(); setExpanded(false); }, { signal: lifetime.signal });
+  container.addEventListener('cancel', event => {
+    if (!expanded) return;
+    event.preventDefault(); setExpanded(false); toolbar.fullscreen.focus();
+  }, { signal: lifetime.signal });
   const resize = new ResizeObserver(entries => {
     const entry = entries[0];
     if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
@@ -154,6 +166,7 @@ export function mountConnections(container, options) {
     destroy() {
       if (destroyed) return;
       destroyed = true; stop(); lifetime.abort(); rows.abort(); resize.disconnect(); viewport.destroy(); renderer.destroy(); toolbar.element.remove();
+      container.classList.remove('connections-graph-only');
     }
   };
 }
