@@ -55,6 +55,7 @@ window.App = window.App || {};
   App.toast = function (message, type) {
     var el = document.createElement('div');
     el.className = 'toast ' + type;
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
 
     var text = document.createElement('span');
     text.textContent = message;
@@ -64,14 +65,17 @@ window.App = window.App || {};
       var btn = document.createElement('button');
       btn.className = 'toast-copy-btn';
       btn.title = 'Copy error';
+      btn.setAttribute('aria-label', 'Copy error');
       btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        navigator.clipboard.writeText(message).then(function () {
+        Promise.resolve().then(function () { return navigator.clipboard.writeText(message); }).then(function () {
           btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
           setTimeout(function () {
             btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
           }, 1500);
+        }).catch(function () {
+          App.toast('Could not copy the message. Select and copy its text instead.', 'info');
         });
       });
       el.appendChild(btn);

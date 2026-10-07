@@ -20,7 +20,9 @@ window.App = window.App || {};
     return (App.http ? App.http.fetch(url, opts) : fetch(url, opts)).then(function (r) {
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (e) {
-          throw new Error(e.message || 'HTTP ' + r.status);
+          var error = new Error(e.message || 'HTTP ' + r.status);
+          error.status = r.status;
+          throw error;
         });
       }
       if (r.status === 204) return null;
@@ -49,6 +51,14 @@ window.App = window.App || {};
   App.noteToMD = App.knowledge.noteToMD;
   App.mdToNote = App.knowledge.mdToNote;
 
+  function showPushResult(result, successMessage) {
+    if (result && (result.remoteCheckFailed || result.failedDeletes || result.failedImages)) {
+      App.toast('GitHub sync is incomplete. Some remote notes or images could not be updated. Your local notes remain available; try syncing again.', 'error');
+    } else {
+      App.toast(successMessage, 'success');
+    }
+  }
+
   // Core push — mutates state.notes (updates _sha), pushes images. No UI, no toasts.
   App._pushCore = async function () {
     var s = state.settings;
@@ -56,6 +66,7 @@ window.App = window.App || {};
 
     var remoteSHAs = {};
     var remoteFiles = [];
+    var report = { remoteCheckFailed: false, failedDeletes: 0, failedImages: 0 };
     try {
       var listing = await repoAPI('/notes?ref=' + s.branch, 'GET');
       if (Array.isArray(listing)) {
@@ -64,7 +75,10 @@ window.App = window.App || {};
           remoteSHAs[rf.name.replace('.md', '')] = rf.sha;
         });
       }
-    } catch (e) { /* notes/ may not exist yet on an empty repo */ }
+    } catch (e) {
+      // A missing notes directory is expected on the first push.
+      report.remoteCheckFailed = e.status !== 404;
+    }
 
     for (var i = 0; i < state.notes.length; i++) {
       var note = state.notes[i];
@@ -92,16 +106,17 @@ window.App = window.App || {};
             try {
               await repoAPI('/notes/' + rf.name, 'DELETE', { message: 'Delete ' + remoteId, sha: rf.sha, branch: s.branch });
             } catch (e) {
-              console.warn('Failed to delete remote note:', rf.name, e);
+              report.failedDeletes++;
             }
           }
         }
       }
     } catch (e) {
-      console.warn('Could not check remote deletions:', e);
+      report.remoteCheckFailed = true;
     }
 
-    await App.pushAllImages();
+    report.failedImages = (await App.pushAllImages()) || 0;
+    return report;
   };
 
   // Core pull — fetches remote notes, merges into state.notes (newer updatedAt wins).
@@ -162,21 +177,22 @@ window.App = window.App || {};
     dom.syncLabel.textContent = 'Pushing...';
     dom.syncBtn.disabled = true;
     try {
-      await App._pushCore();
+      var result = await App._pushCore();
       App.saveNotes();
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
-      App.toast('Pushed to repo!', 'success');
+      showPushResult(result, 'Pushed to repo!');
     } catch (e) {
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
-      App.toast('Push failed: ' + e.message, 'error');
+      App.toast('Could not push to GitHub. Check your connection and repository settings, then try again. Your local notes remain available.', 'error');
     }
   };
 
   App.pushAllImages = async function () {
     var s = state.settings;
-    if (!state.pendingImages.length) return;
+    if (!state.pendingImages.length) return 0;
+    var failed = 0;
     // Marking a durable image as uploaded replaces the live pending array.
     var pending = state.pendingImages.slice();
     for (var i = 0; i < pending.length; i++) {
@@ -190,10 +206,11 @@ window.App = window.App || {};
         img._pushed = true;
         if (App.markOfflineImagePushed) await App.markOfflineImagePushed(img.filename);
       } catch (e) {
-        console.warn('Image push failed:', img.filename, e);
+        failed++;
       }
     }
     state.pendingImages = state.pendingImages.filter(function (img) { return !img._pushed; });
+    return failed;
   };
 
   App.pullAllNotes = async function () {
@@ -218,7 +235,7 @@ window.App = window.App || {};
     } catch (e) {
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
-      App.toast('Pull failed: ' + e.message, 'error');
+      App.toast('Could not pull from GitHub. Check your connection and repository settings, then try again. Your local notes remain available.', 'error');
     }
   };
 
@@ -233,7 +250,7 @@ window.App = window.App || {};
     dom.syncBtn.disabled = true;
     try {
       await App._pullCore();
-      await App._pushCore();
+      var result = await App._pushCore();
       App.saveNotes();
       App.renderNotesList();
       App.updateNoteCount();
@@ -242,11 +259,11 @@ window.App = window.App || {};
       }
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
-      App.toast('Synced with repo!', 'success');
+      showPushResult(result, 'Synced with repo!');
     } catch (e) {
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
-      App.toast('Sync failed: ' + e.message, 'error');
+      App.toast('Could not sync with GitHub. Check your connection and repository settings, then try again. Your local notes remain available.', 'error');
     }
   };
 
@@ -254,7 +271,9 @@ window.App = window.App || {};
     try {
       return await App._pullCore();
     } catch (e) {
-      console.warn('Silent pull failed:', e);
+      if (e.status !== 404) {
+        App.toast('Background sync is unavailable. Your local notes remain available; try Sync with Repo when your connection is ready.', 'error');
+      }
       return { changed: false };
     }
   };
@@ -267,6 +286,7 @@ window.App = window.App || {};
     }
     dom.syncLabel.textContent = 'Wiping...';
     dom.syncBtn.disabled = true;
+    var remoteIncomplete = false;
     try {
       var notesList = await repoAPI('/notes?ref=' + s.branch, 'GET');
       if (Array.isArray(notesList)) {
@@ -276,7 +296,7 @@ window.App = window.App || {};
           try {
             await repoAPI('/notes/' + f.name, 'DELETE', { message: 'Wipe all data', sha: f.sha, branch: s.branch });
           } catch (e) {
-            console.warn('Failed to delete note:', f.name, e);
+            remoteIncomplete = true;
           }
         }
       }
@@ -289,11 +309,14 @@ window.App = window.App || {};
             try {
               await repoAPI('/images/' + fi.name, 'DELETE', { message: 'Wipe all data', sha: fi.sha, branch: s.branch });
             } catch (e) {
-              console.warn('Failed to delete image:', fi.name, e);
+              remoteIncomplete = true;
             }
           }
         }
-      } catch (e) { /* images/ may not exist */ }
+      } catch (e) {
+        // The images directory is optional; other failures leave cleanup incomplete.
+        if (e.status !== 404) remoteIncomplete = true;
+      }
       if (App.clearOfflineImages) await App.clearOfflineImages();
       else state.offlineImages = {};
       state.notes = [];
@@ -305,9 +328,13 @@ window.App = window.App || {};
       App.showEmptyEditor();
       App.renderNotesList();
       App.updateNoteCount();
-      App.toast('All remote and local data wiped', 'success');
+      if (remoteIncomplete) {
+        App.toast('Local data cleared, but remote cleanup is incomplete. Check your connection and repository settings, then try wiping again.', 'error');
+      } else {
+        App.toast('All remote and local data wiped', 'success');
+      }
     } catch (e) {
-      App.toast('Wipe failed: ' + e.message, 'error');
+      App.toast('Could not finish wiping data. Some data may remain. Check your connection and local storage, then try again.', 'error');
     } finally {
       dom.syncLabel.textContent = 'Sync with Repo';
       dom.syncBtn.disabled = false;
@@ -395,8 +422,11 @@ window.App = window.App || {};
         }
         App.toast('Imported ' + imported.length + ' note(s)!', 'success');
       } catch (err) {
-        App.toast('Import failed: ' + err.message, 'error');
+        App.toast('Import failed. Choose a valid memorai JSON export with complete note links.', 'error');
       }
+    };
+    reader.onerror = function () {
+      App.toast('Could not read the import file. Choose the file again and retry.', 'error');
     };
     reader.readAsText(file);
   };

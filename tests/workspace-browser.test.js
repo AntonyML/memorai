@@ -34,14 +34,14 @@ function browser({ local = [], remote = [], storage = new Map(), origin = 'http:
     STORE_NOTES: 'memorai_notes',
     state: { notes: clone(local), activeNoteId: null, currentTags: [], saveTimeout: null, settings: { sortBy: 'updated' }, isPreview: false },
     dom: { noteTitle: { value: '' }, noteContent: { value: '' } },
-    toast: (message, type) => toasts.push({ message, type })
+    toast: (message, type) => toasts.push({ message, type }),
+    confirmAction: async () => true
   };
   const context = vm.createContext({
     window: { App: app, addEventListener: (name, callback) => listeners.set(name, callback) },
     location: { origin, hostname: new URL(origin).hostname },
     document: { hidden: false, getElementById: id => id === 'workspaceStatus' ? workspaceStatus : null },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
-    confirm: () => true,
     AbortSignal,
     setTimeout: (callback, delay) => { const id = nextTimer++; timeouts.set(id, { callback, delay }); return id; },
     clearTimeout: id => timeouts.delete(id),
@@ -198,7 +198,7 @@ test('deletion during an in-flight PUT stays deleted on the next poll and reload
   env.onPut(async () => { entered.resolve(); await resume.promise; env.onPut(undefined); });
   await env.save();
   await entered.promise;
-  env.app.deleteNote(base.id);
+  await env.app.deleteNote(base.id);
   resume.resolve();
   await env.settle();
   expect(env.app.state.notes).toEqual([]);
@@ -263,7 +263,7 @@ test('unsent browser deletion survives reload before the server receives it', as
   const env = browser({ local: [base], remote: [base] });
   await env.app.initWorkspace();
   env.disconnect(true);
-  env.app.deleteNote(base.id);
+  await env.app.deleteNote(base.id);
   await env.save();
   expect(env.remote().notes).toHaveLength(1);
   const reload = browser({ local: env.cached(), remote: env.remote().notes, storage: env.storage });

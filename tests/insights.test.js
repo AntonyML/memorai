@@ -42,6 +42,11 @@ function notebook({ notes = [], chartAvailable = true, reducedMotion = false, ch
     static getChart(canvas) { return charts.findLast(chart => chart.canvas === canvas && !chart.destroyed); }
   }
   const app = { state: { notes }, libs: chartAvailable ? { Chart } : {} };
+  app.openDialog = dialog => {
+    if (dialog.open) return false;
+    dialog.showModal();
+    return true;
+  };
   const cleared = [];
   const context = vm.createContext({
     window: { App: app, matchMedia: () => ({ matches: reducedMotion }), getComputedStyle: () => ({ getPropertyValue: name => colors[name] || '' }) },

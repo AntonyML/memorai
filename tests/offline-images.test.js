@@ -70,14 +70,14 @@ test('failed image persistence retains the memory copy without inserting a broke
   env.app.resizeImage = async () => png;
   env.app.persistOfflineImage = async image => {
     env.app.state.offlineImages[image.filename] = image;
-    throw new Error('Storage quota exceeded');
+    throw new Error('Storage quota exceeded: internal database path /private/notebook');
   };
   env.app.handleImageFile({ type: 'image/png', name: 'Diagram.png' });
   await settle();
   expect(Object.values(env.app.state.offlineImages)).toHaveLength(1);
   expect(env.app.dom.noteContent.value).toBe('');
   expect(env.saves).toHaveLength(0);
-  expect(env.toasts.at(-1)).toEqual({ message: 'Image could not be inserted: Storage quota exceeded', type: 'error' });
+  expect(env.toasts.at(-1)).toEqual({ message: 'Image could not be saved offline. Check browser storage and try again.', type: 'error' });
 });
 
 test('switching notes while an image is processing inserts into the original note only', async () => {
@@ -105,7 +105,7 @@ test('image processing failures are reported without changing notes', async () =
   expect(env.images).toHaveLength(0);
   expect(env.app.dom.noteContent.value).toBe('');
   expect(env.toasts.at(-1).type).toBe('error');
-  expect(env.toasts.at(-1).message).toContain('Could not decode');
+  expect(env.toasts.at(-1).message).toBe('Image could not be processed. Try another image file.');
 });
 
 test('preview prefers cached raster images after upload and falls back for remote files', () => {

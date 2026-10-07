@@ -341,9 +341,7 @@ window.App = window.App || {};
           el.parentNode.replaceChild(svg, el);
         }
       });
-    } catch (e) {
-      console.warn('Icon render error:', e);
-    }
+    } catch (_) { /* Keep labeled controls usable when an icon cannot render. */ }
   };
 
   App.renderMarkdown = function (text) {

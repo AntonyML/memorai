@@ -36,7 +36,7 @@ window.App = window.App || {};
     try {
       localStorage.setItem(App.STORE_SETTINGS, JSON.stringify(state.settings));
     } catch (e) {
-      App.toast && App.toast('Failed to save settings: storage full', 'error');
+      App.toast && App.toast('Settings could not be saved in this browser. Check available storage and try again.', 'error');
     }
   };
 
@@ -121,7 +121,7 @@ window.App = window.App || {};
       return true;
     } catch (e) {
       if (!App.offlineStatus || App.offlineStatus.mode === 'fallback') {
-        App.toast && App.toast('Failed to save browser backup: storage full', 'error');
+        App.toast && App.toast('Browser backup could not be saved. Keep this tab open and export your notes before leaving.', 'error');
       }
       return false;
     }

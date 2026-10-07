@@ -37,6 +37,7 @@ Frontend vanilla: módulos IIFE en `window.App`, estado mutable y DOM cacheado. 
 | `js/connections.js` | Enlaces, backlinks y mapa SVG |
 | `js/insights.js` / `js/gestures.js` | Estadísticas Chart.js / navegación táctil Hammer.js |
 | `js/http.js` / `js/utils.js` | HTTP Axios / escape Lodash, fechas Luxon y avisos Anime.js |
+| `js/dialogs.js` | Modales compartidos, confirmación asíncrona, foco y teclado |
 | `js/sync.js` | GitHub Contents API; notas con frontmatter e imágenes separadas |
 
 `marked`, highlight.js y DOMPurify renderizan Markdown con sanitización. Temas e iconos se mantienen en CSS y SVG locales.
@@ -59,6 +60,7 @@ Configura token, repositorio y rama en Settings. El token necesita escritura en 
 
 - Mantén formato y reconciliación en `js/knowledge.js`; modifica notas mediante `App.updateNote`.
 - Tras reemplazar HTML, llama a `App.refreshIcons`; usa DOMPurify al renderizar Markdown.
+- Abre modales con `App.openDialog`; confirma acciones con `await App.confirmAction`. Comunica resultados con `App.toast` o el estado contextual, sin errores internos.
 - Guarda preferencias con `App.saveSettings`; respeta campos bloqueados por configuración.
 - Temas: `App.LIGHT_THEMES` y `App.themeToDropdownValue` son las referencias para modo y selector.
 - Push GitHub: usa `remoteSHAs[note.id] || note._sha`.

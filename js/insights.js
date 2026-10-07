@@ -134,12 +134,12 @@ window.App = window.App || {};
   App.openInsights = function () {
     if (!initialized) App.initInsights();
     if (!initialized) return;
+    if (!App.openDialog(refs.dialog, refs.close)) return;
     if (App.state.saveTimeout && typeof App.doAutoSave === 'function') {
       clearTimeout(App.state.saveTimeout);
       App.state.saveTimeout = null;
       App.doAutoSave();
     }
-    if (!refs.dialog.open) refs.dialog.showModal();
     App.refreshInsights();
   };
 
@@ -159,8 +159,5 @@ window.App = window.App || {};
     refs.toggle.addEventListener('click', App.openInsights);
     refs.close.addEventListener('click', function () { destroyChart(); refs.dialog.close(); });
     refs.dialog.addEventListener('close', destroyChart);
-    refs.dialog.addEventListener('click', function (event) {
-      if (event.target === refs.dialog) { destroyChart(); refs.dialog.close(); }
-    });
   };
 })();

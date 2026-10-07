@@ -5,7 +5,7 @@ window.App = window.App || {};
 
   App.STORE_NOTES = 'memorai_notes';
   App.STORE_SETTINGS = 'memorai_settings';
-  App.VERSION = '0.3.1';
+  App.VERSION = '0.3.2';
 
   App.DEFAULT_SETTINGS = {
     theme: 'catppuccin-macchiato',
@@ -75,6 +75,7 @@ window.App = window.App || {};
   wipeConfirm: $('#wipeConfirm'),
   wipeInput: $('#wipeInput'),
   wipeConfirmBtn: $('#wipeConfirmBtn'),
+  wipeCancel: $('#wipeCancel'),
   validateGithubBtn: $('#validateGithubBtn'),
   githubStatus: $('#githubStatus'),
 };

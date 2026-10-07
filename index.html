@@ -257,11 +257,10 @@
       </main>
     </div>
 
-    <div class="modal-overlay hidden" id="settingsModal">
-      <div class="modal">
+    <dialog class="app-dialog settings-dialog" id="settingsModal" aria-labelledby="settingsTitle">
         <div class="modal-header">
-          <h2>Settings</h2>
-          <button class="btn-icon modal-close" id="settingsClose">
+          <h2 id="settingsTitle">Settings</h2>
+          <button class="btn-icon modal-close" id="settingsClose" aria-label="Close settings">
             <i data-lucide="x" width="20" height="20"></i>
           </button>
         </div>
@@ -336,7 +335,7 @@
                 <i data-lucide="check-circle"></i>
                 <span>Validate Connection</span>
               </button>
-              <span class="github-status" id="githubStatus"></span>
+              <span class="github-status" id="githubStatus" role="status"></span>
             </div>
           </div>
           <div class="setting-group">
@@ -352,9 +351,10 @@
             <p class="setting-hint">Permanently delete all notes and images from your GitHub repository and local storage. This cannot be undone.</p>
             <button class="btn-secondary btn-danger-outline" id="wipeBtn">Delete All Remote Data</button>
             <div class="danger-confirm hidden" id="wipeConfirm">
-              <p class="setting-hint">Type <strong>DELETE</strong> to confirm:</p>
+              <label class="setting-hint" for="wipeInput">Type <strong>DELETE</strong> to confirm:</label>
               <input type="text" id="wipeInput" class="setting-input" placeholder="DELETE" autocomplete="off">
               <button class="btn-primary btn-danger-filled" id="wipeConfirmBtn" disabled>I understand, delete everything</button>
+              <button class="btn-secondary" id="wipeCancel">Cancel</button>
             </div>
           </div>
           <div class="settings-footer">
@@ -367,8 +367,18 @@
             <span class="settings-version" id="settingsVersion"></span>
           </div>
         </div>
+    </dialog>
+
+    <dialog class="app-dialog" id="confirmationDialog" aria-labelledby="confirmationTitle" aria-describedby="confirmationMessage">
+      <div class="modal-header"><h2 id="confirmationTitle">Confirm action</h2></div>
+      <div class="modal-body">
+        <p id="confirmationMessage"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn-secondary" id="confirmationCancel">Cancel</button>
+          <button type="button" class="btn-primary btn-danger-filled" id="confirmationAccept">Delete</button>
+        </div>
       </div>
-    </div>
+    </dialog>
 
     <dialog class="connections-dialog" id="connectionsDialog" aria-labelledby="connectionsDialogTitle" aria-describedby="connectionsDialogDescription">
       <div class="modal-header">
@@ -422,6 +432,7 @@
   <script src="assets/vendor.js"></script>
   <script src="js/state.js"></script>
   <script src="js/utils.js"></script>
+  <script src="js/dialogs.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/notes.js"></script>

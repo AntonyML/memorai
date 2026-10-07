@@ -214,7 +214,7 @@ window.App = window.App || {};
     });
 
     dom.settingsToggle.addEventListener('click', function () {
-      dom.settingsModal.classList.remove('hidden');
+      if (!App.openDialog(dom.settingsModal, dom.settingsClose)) return;
       dom.themeSelect.value = App.themeToDropdownValue(state.settings.theme);
       dom.timeFormatSelect.value = state.settings.timeFormat;
       dom.noteDisplaySelect.value = state.settings.noteDisplay;
@@ -231,18 +231,14 @@ window.App = window.App || {};
     });
 
     function closeSettings() {
-      dom.settingsModal.classList.add('hidden');
       App.hideWipeConfirm();
       if (dom.githubStatus) { dom.githubStatus.textContent = ''; dom.githubStatus.className = 'github-status'; }
       App.saveSettings();
       App.updateRepoDependentUI();
     }
 
-    dom.settingsClose.addEventListener('click', closeSettings);
-
-    dom.settingsModal.addEventListener('click', function (e) {
-      if (e.target === dom.settingsModal) { closeSettings(); }
-    });
+    dom.settingsClose.addEventListener('click', function () { dom.settingsModal.close(); });
+    dom.settingsModal.addEventListener('close', closeSettings);
 
     dom.themeSelect.addEventListener('change', function () {
       var val = dom.themeSelect.value;
@@ -292,10 +288,10 @@ window.App = window.App || {};
           status.textContent = '✓ Connected to ' + repo;
           status.className = 'github-status success';
         } else {
-          return r.json().then(function (body) {
-            status.textContent = 'Error ' + r.status + ': ' + (body.message || r.statusText);
-            status.className = 'github-status error';
-          });
+          status.textContent = r.status === 401 ? 'Token not accepted. Check your GitHub token.'
+            : r.status === 403 ? 'Access denied. Check token permissions or try again later.'
+            : 'Could not connect. Check the repository and try again.';
+          status.className = 'github-status error';
         }
       }).catch(function () {
         status.textContent = 'Connection failed. Check your network.';
@@ -310,12 +306,14 @@ window.App = window.App || {};
     dom.importFile.addEventListener('change', function (e) { if (e.target.files && e.target.files[0]) { App.importNotes(e.target.files[0]); dom.importFile.value = ''; } });
 
     dom.wipeBtn.addEventListener('click', App.showWipeConfirm);
+    dom.wipeCancel.addEventListener('click', function () { App.hideWipeConfirm(); dom.wipeBtn.focus(); });
 
     dom.wipeInput.addEventListener('input', function () {
       dom.wipeConfirmBtn.disabled = dom.wipeInput.value !== 'DELETE';
     });
 
     dom.wipeConfirmBtn.addEventListener('click', function () {
+      if (dom.wipeInput.value !== 'DELETE') return;
       App.hideWipeConfirm();
       App.wipeRemoteRepo();
     });

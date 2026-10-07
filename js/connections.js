@@ -315,11 +315,10 @@ window.App = window.App || {};
 
   App.openConnections = function (focus) {
     if (!initialized) return;
+    if (!App.openDialog(refs.dialog, refs.close)) return;
     flushEditor();
     populateFocus(focus === undefined ? App.state.activeNoteId : focus);
     renderGraph();
-    if (!refs.dialog.open) refs.dialog.showModal();
-    refs.close.focus();
   };
 
   App.initConnections = function () {
@@ -338,13 +337,6 @@ window.App = window.App || {};
     document.getElementById('connectionsToggle').addEventListener('click', function () { App.openConnections(); });
     document.getElementById('noteConnectionsMap').addEventListener('click', function () { App.openConnections(); });
     refs.close.addEventListener('click', function () { refs.dialog.close(); });
-    refs.dialog.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') event.stopPropagation();
-    });
-    refs.dialog.addEventListener('click', function (event) {
-      var bounds = refs.dialog.getBoundingClientRect();
-      if (event.target === refs.dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) refs.dialog.close();
-    });
     refs.focus.addEventListener('change', renderGraph);
     refs.depth.addEventListener('change', renderGraph);
     refs.kind.addEventListener('change', function () { saveMetadata({ kind: refs.kind.value }); });

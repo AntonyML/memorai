@@ -54,7 +54,7 @@ window.App = window.App || {};
     status(notebook ? 'rxdb' : 'fallback', error);
     if (!warned) {
       warned = true;
-      App.toast('Offline database unavailable. Keep this tab open; changes remain in the browser backup when available. ' + error.message, 'error');
+      App.toast('Offline storage is unavailable. Keep this tab open and export your notes before leaving.', 'error');
     }
   }
 

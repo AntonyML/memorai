@@ -46,8 +46,15 @@ window.App = window.App || {};
     App.saveNotes();
   };
 
-  App.deleteNote = function (id) {
-    if (!confirm('Delete this note?')) return;
+  App.deleteNote = async function (id) {
+    if (!state.notes.some(function (note) { return note.id === id; })) return;
+    var confirmed = await App.confirmAction({
+      title: 'Delete note',
+      message: 'Are you sure you want to delete this note?',
+      acceptLabel: 'Delete',
+      destructive: true
+    });
+    if (!confirmed || !state.notes.some(function (note) { return note.id === id; })) return;
     state.notes = state.notes.filter(function (n) { return n.id !== id; });
     state.notes.forEach(function (note) {
       var links = (note.links || []).filter(function (link) { return link.target !== id; });

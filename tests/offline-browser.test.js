@@ -123,9 +123,10 @@ test('database failure keeps the backup and pending deletions recover on the nex
     ['memorai_notes', JSON.stringify(original)],
     ['memorai_offline_baseline', JSON.stringify({ version: 1, notes: K.baseline(original), pending: false })]
   ]);
-  const failed = browser({ storage, openError: new Error('IndexedDB blocked') });
+  const failed = browser({ storage, openError: new Error('IndexedDB blocked: internal database path /private/notebook') });
   expect(await failed.App.initOfflineStorage()).toBe(false);
   expect(failed.App.offlineStatus.mode).toBe('fallback');
+  expect(failed.messages.at(-1)).toEqual(['Offline storage is unavailable. Keep this tab open and export your notes before leaving.', 'error']);
   failed.App.state.notes = [];
   failed.App.saveNotes();
   await expect(failed.App.flushOfflineNotes()).rejects.toThrow('IndexedDB blocked');

@@ -69,7 +69,7 @@ test('optional Google Fonts failure still permits worker installation and activa
   await instance.lifecycle('activate');
   expect(instance.calls.skipped).toBe(1);
   expect(instance.calls.claimed).toBe(1);
-  expect(instance.calls.warnings).toHaveLength(1);
+  expect(instance.calls.warnings).toHaveLength(0);
 });
 
 test('private APIs, server config, GitHub and POST bypass the service worker cache', () => {

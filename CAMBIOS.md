@@ -2,6 +2,11 @@
 
 Historial de cambios; el funcionamiento actual está en [README.md](README.md).
 
+## 0.3.2
+
+- Borrado con confirmación visual asíncrona; modales comparten foco, teclado y cierre, sin apilarse.
+- Settings accesible y limpieza remota cancelable; errores claros en toasts y estados, sin warnings de depuración.
+
 ## 2026-10-07 — documentación
 
 - `promtInicial.md`: operación de notas como modo predeterminado; cambios del sistema solo con autorización explícita.

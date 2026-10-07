@@ -6,13 +6,16 @@ import * as luxon from 'luxon';
 
 const source = readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8');
 
-function utilities({ libs = {}, reducedMotion = false } = {}) {
+function utilities({ libs = {}, reducedMotion = false, clipboardFailure = false } = {}) {
   const timers = [];
   function element() {
+    const listeners = {};
     return {
-      children: [], style: {}, removed: false,
+      children: [], style: {}, attributes: {}, removed: false,
       appendChild(child) { this.children.push(child); },
-      addEventListener() {},
+      setAttribute(name, value) { this.attributes[name] = value; },
+      addEventListener(name, callback) { listeners[name] = callback; },
+      emit(name, event) { listeners[name]?.(event); },
       remove() { this.removed = true; }
     };
   }
@@ -20,7 +23,7 @@ function utilities({ libs = {}, reducedMotion = false } = {}) {
   vm.runInNewContext(source, {
     window: { App: app, matchMedia: () => ({ matches: reducedMotion }) },
     document: { createElement: element },
-    navigator: { clipboard: { writeText: async () => {} } },
+    navigator: { clipboard: { writeText: async () => { if (clipboardFailure) throw new Error('Internal clipboard details'); } } },
     setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; }
   }, { filename: 'js/utils.js' });
   return { app, timers };
@@ -35,6 +38,20 @@ test('HTML escaping protects content and quoted attributes with or without Lodas
     expect(app.escapeHtml(null)).toBe('');
     expect(app.escapeHtml(7)).toBe('7');
   }
+});
+
+test('toasts announce results and report clipboard failures without internal details', async () => {
+  const { app } = utilities({ clipboardFailure: true });
+  app.toast('Could not save', 'error');
+  const error = app.dom.toastContainer.children[0];
+  expect(error.attributes.role).toBe('alert');
+  expect(error.children[1].attributes['aria-label']).toBe('Copy error');
+  error.children[1].emit('click', { stopPropagation() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  const fallback = app.dom.toastContainer.children[1];
+  expect(fallback.attributes.role).toBe('status');
+  expect(fallback.children[0].textContent).toContain('Select and copy');
+  expect(fallback.children[0].textContent).not.toContain('Internal');
 });
 
 test('Luxon preserves the local date and honors both time display settings', () => {

@@ -1,4 +1,4 @@
-var CACHE = 'memorai-v0.3.1';
+var CACHE = 'memorai-v0.3.2';
 var URLS = [
   '/',
   'index.html',
@@ -6,6 +6,7 @@ var URLS = [
   'assets/vendor.js',
   'js/state.js',
   'js/utils.js',
+  'js/dialogs.js',
   'js/icons.js',
   'js/storage.js',
   'js/notes.js',
@@ -46,9 +47,7 @@ self.addEventListener('install', function (e) {
       return Promise.all(
         URLS.map(function (url) {
           if (new URL(url, self.location.origin).origin === self.location.origin) return cache.add(url);
-          return cache.add(url).catch(function (err) {
-            console.warn('SW: failed to cache', url, err);
-          });
+          return cache.add(url).catch(function () { /* Optional fonts use the system-font fallback. */ });
         })
       );
     }).then(function () {

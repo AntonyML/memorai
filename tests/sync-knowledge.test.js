@@ -21,6 +21,7 @@ function browser(local, remote) {
   const toasts = [];
   const flushed = [];
   let fileHook;
+  let requestHook;
   const app = {
     state: { notes: clone(local), pendingImages: [], activeNoteId: null, saveTimeout: null, settings: { repo: 'example/notes', branch: 'main', githubToken: 'fixture-token' } },
     dom: { syncLabel: { textContent: '' }, syncBtn: { disabled: false }, noteTitle: { value: '' }, noteContent: { value: '' } },
@@ -45,12 +46,22 @@ function browser(local, remote) {
   const context = vm.createContext({
     window: { App: app }, TextEncoder, TextDecoder, btoa, atob,
     clearTimeout: () => {},
-    console: { warn: () => {} },
+    console: { warn: () => { throw new Error('Unexpected browser warning'); } },
+    FileReader: class {
+      readAsText(file) {
+        if (file === null) this.onerror();
+        else this.onload({ target: { result: file } });
+      }
+    },
     fetch: async (url, options = {}) => {
       const pathname = new URL(url).pathname;
       const method = options.method || 'GET';
       const body = options.body ? JSON.parse(options.body) : undefined;
       requests.push({ pathname, method, body });
+      if (requestHook) {
+        const result = await requestHook({ pathname, method, body });
+        if (result) return result;
+      }
       if (pathname.endsWith('/contents/notes')) return response(200, remote.map(item => ({ name: `${item.id}.md`, type: 'file', sha: `remote-sha-${item.id}` })));
       if (method === 'PUT') return response(200, { content: { sha: 'saved-sha' } });
       const id = pathname.slice(pathname.lastIndexOf('/') + 1).replace(/\.md$/, '');
@@ -65,7 +76,7 @@ function browser(local, remote) {
   });
   vm.runInContext(knowledgeSource, context, { filename: 'js/knowledge.js' });
   vm.runInContext(syncSource, context, { filename: 'js/sync.js' });
-  return { app, requests, saves, refreshes, toasts, flushed, onFile: hook => { fileHook = hook; } };
+  return { app, requests, saves, refreshes, toasts, flushed, onFile: hook => { fileHook = hook; }, onRequest: hook => { requestHook = hook; } };
 }
 
 test('GitHub pull stages all files before exposing changed notes and relationships', async () => {
@@ -291,6 +302,109 @@ test('wipe storage failures report an error instead of durable success', async (
   env.app.clearOfflineImages = async () => { throw new Error('Image storage unavailable'); };
   await env.app.wipeRemoteRepo();
   expect(env.app.state.notes).toHaveLength(1);
-  expect(env.toasts.at(-1)).toEqual({ message: 'Wipe failed: Image storage unavailable', type: 'error' });
+  expect(env.toasts.at(-1)).toEqual({ message: 'Could not finish wiping data. Some data may remain. Check your connection and local storage, then try again.', type: 'error' });
   expect(env.app.dom.syncBtn.disabled).toBe(false);
+});
+
+test('sync actions show useful errors without exposing remote or storage details', async () => {
+  for (const action of ['pushAllNotes', 'pullAllNotes', 'handleSync']) {
+    const existing = note('local');
+    const env = browser([existing], []);
+    const detail = 'Internal stack fixture-token /private/database.js';
+    env.onRequest(() => response(500, { message: detail }));
+    await env.app[action]();
+    expect(env.toasts.at(-1).type).toBe('error');
+    expect(env.toasts.at(-1).message).toContain('Check your connection and repository settings');
+    expect(env.toasts.at(-1).message).not.toContain(detail);
+    expect(env.app.state.notes).toEqual([existing]);
+    expect(env.app.dom.syncBtn.disabled).toBe(false);
+    expect(env.app.dom.syncLabel.textContent).toBe('Sync with Repo');
+  }
+});
+
+test('partial remote deletion reports incomplete push while keeping successful writes', async () => {
+  const existing = note('local');
+  const env = browser([existing], [existing, note('deleted')]);
+  env.onRequest(({ method }) => method === 'DELETE' ? response(403, { message: 'Private permission details' }) : undefined);
+  await env.app.pushAllNotes();
+  expect(env.app.state.notes).toHaveLength(1);
+  expect(env.app.state.notes[0]._sha).toBe('saved-sha');
+  expect(env.saves).toHaveLength(1);
+  expect(env.toasts).toEqual([{ message: 'GitHub sync is incomplete. Some remote notes or images could not be updated. Your local notes remain available; try syncing again.', type: 'error' }]);
+  expect(env.app.dom.syncBtn.disabled).toBe(false);
+});
+
+test('failed image uploads remain pending and manual sync reports incomplete work', async () => {
+  const env = browser([note('local')], []);
+  const images = ['retry.png', 'uploaded.png'].map(filename => ({ filename, dataUrl: 'data:image/png;base64,aGVsbG8=' }));
+  env.app.state.pendingImages = clone(images);
+  env.onRequest(({ pathname, method }) => method === 'PUT' && pathname.endsWith('/retry.png') ? response(500, { message: 'Internal transport details' }) : undefined);
+  await env.app.handleSync();
+  expect(env.app.state.pendingImages).toEqual([images[0]]);
+  expect(env.requests.filter(request => request.method === 'PUT' && request.pathname.includes('/images/'))).toHaveLength(2);
+  expect(env.toasts).toHaveLength(1);
+  expect(env.toasts[0].type).toBe('error');
+  expect(env.toasts[0].message).toContain('GitHub sync is incomplete');
+  expect(env.toasts[0].message).not.toContain('Internal transport details');
+});
+
+test('first push accepts a missing notes folder but reports other listing failures', async () => {
+  for (const status of [404, 403]) {
+    const env = browser([note('local')], []);
+    env.onRequest(({ pathname, method }) => method === 'GET' && pathname.endsWith('/contents/notes') ? response(status, { message: 'Private status details' }) : undefined);
+    await env.app.pushAllNotes();
+    expect(env.requests.some(request => request.method === 'PUT')).toBe(true);
+    expect(env.toasts.at(-1).type).toBe(status === 404 ? 'success' : 'error');
+    expect(env.toasts.at(-1).message).not.toContain('Private status details');
+  }
+});
+
+test('background pull reports connection failures but an empty repository stays quiet', async () => {
+  for (const status of [404, 500]) {
+    const env = browser([note('local')], []);
+    env.onRequest(() => response(status, { message: 'Private status details' }));
+    expect(await env.app.silentPull()).toEqual({ changed: false });
+    expect(env.toasts).toHaveLength(status === 404 ? 0 : 1);
+    if (status !== 404) {
+      expect(env.toasts[0].type).toBe('error');
+      expect(env.toasts[0].message).toContain('Background sync is unavailable');
+      expect(env.toasts[0].message).not.toContain('Private status details');
+    }
+    expect(env.app.state.notes).toHaveLength(1);
+  }
+});
+
+test('wipe reports incomplete remote deletion while preserving local clearing policy', async () => {
+  const env = browser([note('first'), note('second')], [note('first'), note('second')]);
+  env.onRequest(({ pathname, method }) => method === 'DELETE' && pathname.endsWith('/first.md') ? response(403, { message: 'Private deletion details' }) : undefined);
+  await env.app.wipeRemoteRepo();
+  expect(env.requests.filter(request => request.method === 'DELETE')).toHaveLength(2);
+  expect(env.app.state.notes).toHaveLength(0);
+  expect(env.saves).toHaveLength(1);
+  expect(env.toasts).toEqual([{ message: 'Local data cleared, but remote cleanup is incomplete. Check your connection and repository settings, then try wiping again.', type: 'error' }]);
+  expect(env.app.dom.syncBtn.disabled).toBe(false);
+});
+
+test('wipe reports failure to inspect an existing images folder without treating missing folders as errors', async () => {
+  for (const status of [404, 500]) {
+    const env = browser([note('local')], []);
+    env.onRequest(({ pathname }) => pathname.endsWith('/contents/images') ? response(status, { message: 'Private image storage details' }) : undefined);
+    await env.app.wipeRemoteRepo();
+    expect(env.app.state.notes).toHaveLength(0);
+    expect(env.toasts.at(-1).type).toBe(status === 404 ? 'success' : 'error');
+    expect(env.toasts.at(-1).message).not.toContain('Private image storage details');
+  }
+});
+
+test('import failures preserve notes and present file guidance without parser or graph internals', () => {
+  for (const source of ['{private-invalid-json', JSON.stringify([note('broken', { links: [{ target: 'missing', type: 'related' }] })]), null]) {
+    const existing = note('local');
+    const env = browser([existing], []);
+    env.app.importNotes(source);
+    expect(env.app.state.notes).toEqual([existing]);
+    expect(env.saves).toHaveLength(0);
+    expect(env.toasts).toHaveLength(1);
+    expect(env.toasts[0].type).toBe('error');
+    expect(env.toasts[0].message).toBe(source === null ? 'Could not read the import file. Choose the file again and retry.' : 'Import failed. Choose a valid memorai JSON export with complete note links.');
+  }
 });

@@ -34,7 +34,7 @@ window.App = window.App || {};
     if (App.cacheNotesBackup) App.cacheNotesBackup();
     else {
       try { localStorage.setItem(App.STORE_NOTES, JSON.stringify(state.notes)); }
-      catch (_) { App.toast('Failed to save browser backup: storage full', 'error'); }
+      catch (_) { App.toast('Browser backup could not be saved. Keep this tab open and export your notes before leaving.', 'error'); }
     }
     if (App.persistOfflineNotes) App.persistOfflineNotes().catch(function () { /* Offline storage reports the failure. */ });
   }
@@ -135,7 +135,7 @@ window.App = window.App || {};
       status(enabled ? 'Workspace offline — saved in browser' : 'Browser storage');
       if (enabled && !warned) {
         warned = true;
-        App.toast('Agent workspace unavailable. Changes are saved in this browser and will retry.', 'error');
+        App.toast('Agent workspace is unavailable. Keep this tab open; saving will retry automatically.', 'error');
       }
     } finally { busy = false; }
   }

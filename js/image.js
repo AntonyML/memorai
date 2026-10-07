@@ -44,6 +44,7 @@ window.App = window.App || {};
   App.handleImageFile = function (file) {
     if (!file || typeof file.type !== 'string' || !/^image\//.test(file.type) || !state.activeNoteId) return false;
     var noteId = state.activeNoteId;
+    var failureMessage = 'Image could not be processed. Try another image file.';
     App.toast('Processing image\u2026', 'info');
     App.resizeImage(file, 1200, 1200).then(async function (dataUrl) {
       var now = new Date();
@@ -60,8 +61,10 @@ window.App = window.App || {};
       var name = file.name || 'image';
       name = name.replace(/[\[\]()\r\n]/g, '_');
       var image = { filename: filename, dataUrl: dataUrl, name: name };
+      failureMessage = 'Image could not be saved offline. Check browser storage and try again.';
       if (App.persistOfflineImage) await App.persistOfflineImage(image);
       else state.pendingImages.push(image);
+      failureMessage = 'Image was saved locally but could not be inserted. Try again.';
       var markdown = '\n![' + name + '](images/' + filename + ')\n';
       if (state.activeNoteId === noteId) {
         App.insertMarkdownAtCursor(markdown);
@@ -76,8 +79,8 @@ window.App = window.App || {};
           App.toast('Image inserted in the original note', 'success');
         } else App.toast('Image saved locally; the original note was deleted', 'info');
       }
-    }).catch(function (error) {
-      App.toast('Image could not be inserted: ' + (error.message || 'Unknown error'), 'error');
+    }).catch(function () {
+      App.toast(failureMessage, 'error');
     });
     return true;
   };
