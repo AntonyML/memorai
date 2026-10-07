@@ -219,3 +219,17 @@ test('workspace size bounds reject a large note without changing existing notes'
   await expect(workspace.upsert({ id: 'large', content: 'x'.repeat(MAX_WORKSPACE_BYTES) })).rejects.toMatchObject({ code: 'workspace-too-large' });
   expect(await workspace.read()).toEqual(before);
 });
+
+test('delete removes a note and cleans incoming links via workspace and CLI', async () => {
+  const root = await fixture();
+  const workspace = createWorkspace(root);
+  await workspace.upsert({ id: 'target', title: 'Target note', content: 'To delete' });
+  await workspace.upsert({ id: 'source', title: 'Source note', content: 'Keep', links: [{ target: 'target', type: 'related' }] });
+  const result = await runCLI(['delete', 'target'], { root });
+  expect(result.deletedId).toBe('target');
+  expect(result.notesCount).toBe(1);
+  const remaining = await workspace.read();
+  expect(remaining.notes.map(n => n.id)).toEqual(['source']);
+  expect(remaining.notes[0].links).toEqual([]);
+});
+

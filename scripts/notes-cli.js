@@ -14,7 +14,8 @@ const HELP = {
     context: 'context <id>: note and its incoming/outgoing connections',
     graph: 'graph [id] [--depth 1..10]: complete graph or neighborhood of a note',
     import: 'import --file <path.json> [--revision number]: merge a JSON array of notes by ID without deleting existing notes',
-    export: 'export --dir <directory>: Markdown files and an importable notes.json array'
+    export: 'export --dir <directory>: Markdown files and an importable notes.json array',
+    delete: 'delete <id> [--revision number]: delete one note and clean incoming links'
   },
   options: '--root <directory> selects a separate project workspace; defaults to this repository.',
   storage: '.memorai/workspace.json; works without a running server',
@@ -125,6 +126,12 @@ export async function runCLI(args, settings = {}) {
     for (const note of snapshot.notes) await writeFile(join(directory, `${note.id}.md`), Knowledge.noteToMD(note), { mode: 0o600 });
     await writeFile(join(directory, 'notes.json'), JSON.stringify(snapshot.notes, null, 2) + '\n', { mode: 0o600 });
     return { revision: snapshot.revision, notesCount: snapshot.notes.length, directory };
+  }
+  if (command === 'delete') {
+    checkArguments(positional, options, 1, ['revision']);
+    const id = positional[0];
+    const { snapshot, changed } = await workspace.delete(id, { revision });
+    return { revision: snapshot.revision, changed, deletedId: id, notesCount: snapshot.notes.length };
   }
   fail(`Unknown command: ${command}`);
 }

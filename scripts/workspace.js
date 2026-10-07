@@ -255,6 +255,23 @@ export function createWorkspace(root = PROJECT_ROOT) {
         }
         return { notes };
       }, options.revision);
+    },
+    async delete(id, options = {}) {
+      if (!id || typeof id !== 'string') invalid('Supply a note ID to delete.');
+      const result = await mutate(previous => {
+        const existing = previous.notes.find(note => note.id === id);
+        if (!existing) throw new WorkspaceError('note-not-found', `Note ${id} does not exist.`, 404);
+        const filtered = previous.notes.filter(note => note.id !== id);
+        const notes = filtered.map(note => {
+          const links = note.links.filter(link => link.target !== id);
+          if (links.length !== note.links.length) {
+            return { ...note, links, updatedAt: Math.max(Date.now(), note.updatedAt + 1) };
+          }
+          return note;
+        });
+        return { notes };
+      }, options.revision);
+      return result;
     }
   };
 }
