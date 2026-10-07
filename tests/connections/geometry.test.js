@@ -91,6 +91,11 @@ test('unobstructed labels are the true quadratic and cubic parameter midpoint', 
         const numbers = route.path.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g)?.map(Number);
         assert.ok(numbers);
         const cubic = route.path.includes(' C ');
+        if (!cubic) {
+            const cross = (numbers[2] - numbers[0]) * (numbers[5] - numbers[1])
+                - (numbers[3] - numbers[1]) * (numbers[4] - numbers[0]);
+            assert.ok(Math.abs(cross) > 1, 'A lone relationship has a visibly curved control point');
+        }
         const midpoint = cubic ? {
             x: (numbers[0] + 3 * numbers[2] + 3 * numbers[4] + numbers[6]) / 8,
             y: (numbers[1] + 3 * numbers[3] + 3 * numbers[5] + numbers[7]) / 8
@@ -116,8 +121,14 @@ test('labels avoid every measured node box while remaining on their curve', () =
     const positions = { a: { x: 0, y: 0 }, b: { x: 600, y: 0 }, obstacle: { x: 300, y: 0 } };
     const [route] = routeEdges(graph, positions);
     assert.notEqual(route.label.x, 300);
-    assert.equal(route.label.y, 0);
     assert.ok(route.label.x > route.start.x && route.label.x < route.end.x);
+    const numbers = route.path.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g)?.map(Number);
+    assert.ok(numbers);
+    // This symmetric fixture has x(t) linear, allowing an independent check
+    // that collision avoidance only moved the parameter along the Bezier.
+    const t = (route.label.x - route.start.x) / (route.end.x - route.start.x);
+    const curveY = (1 - t) ** 2 * numbers[1] + 2 * (1 - t) * t * numbers[3] + t * t * numbers[5];
+    assert.ok(Math.abs(route.label.y - curveY) < 1e-9);
     for (const card of graph.nodes) {
         const center = card.id === 'a' ? positions.a : card.id === 'b' ? positions.b : positions.obstacle;
         assert.ok(Math.abs(route.label.x - center.x) > card.width / 2 + 6
@@ -143,4 +154,18 @@ test('crowded arcs and multiple self loops still produce clear finite routes', (
                 || Math.abs(route.label.y - center.y) > card.height / 2 + 6);
         }
     }
+});
+
+test('a route can escape a large obstructing card instead of leaving its label inside', () => {
+    /** @type {Graph} */
+    const graph = { nodes: [node('a'), node('b'), node('large', 9000, 3000)], focus: 'a', edges: [
+        { id: 'ab1', source: 'a', target: 'b', type: 'related', explicit: true },
+        { id: 'ab2', source: 'a', target: 'b', type: 'part-of', explicit: true },
+        { id: 'ba', source: 'b', target: 'a', type: 'related', explicit: true }
+    ] };
+    const positions = { a: { x: 0, y: 0 }, b: { x: 420, y: 0 }, large: { x: 210, y: 0 } };
+    const routes = routeEdges(graph, positions);
+    assert.equal(new Set(routes.map(route => route.path)).size, 3);
+    for (const route of routes) assert.ok(Math.abs(route.label.y) > 1506);
+    assert.deepEqual(routeEdges({ ...graph, edges: [...graph.edges].reverse() }, positions), routes);
 });

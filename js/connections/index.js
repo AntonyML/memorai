@@ -19,9 +19,12 @@ import { tween } from './animation/tween.js';
  * @returns {import('./types.js').ConnectionsController}
  */
 export function mountConnections(container, options) {
-  const focus = container.querySelector('#graphFocus'), depth = container.querySelector('#graphDepth');
-  const graphElement = container.querySelector('#knowledgeGraph'), list = container.querySelector('#graphNoteList'), status = container.querySelector('#graphStatus');
-  if (!(focus instanceof HTMLSelectElement) || !(depth instanceof HTMLSelectElement) || !(graphElement instanceof HTMLElement) || !(list instanceof HTMLElement) || !(status instanceof HTMLElement)) throw new Error('Connections controls are missing');
+  const { focus, depth, graphElement, list, status } = (() => {
+    const focus = container.querySelector('#graphFocus'), depth = container.querySelector('#graphDepth');
+    const graphElement = container.querySelector('#knowledgeGraph'), list = container.querySelector('#graphNoteList'), status = container.querySelector('#graphStatus');
+    if (!(focus instanceof HTMLSelectElement) || !(depth instanceof HTMLSelectElement) || !(graphElement instanceof HTMLElement) || !(list instanceof HTMLElement) || !(status instanceof HTMLElement)) throw new Error('Connections controls are missing');
+    return { focus, depth, graphElement, list, status };
+  })();
   const lifetime = new AbortController();
   let rows = new AbortController();
   const store = new Store(), history = new HistoryManager(), runner = new LayoutRunner();
@@ -42,8 +45,18 @@ export function mountConnections(container, options) {
   function stop() {
     generation++; animation?.abort(); animation = null; runner.cancel();
     toolbar.setBusy(false); renderer.svg.setAttribute('aria-busy', 'false');
+    status.textContent = `${store.graph.nodes.length} notes · ${store.graph.edges.length} direct links`;
   }
-  function fit() { if (Object.keys(store.positions).length) viewport.fit(boundsFor(store.graph, store.positions)); }
+  function fit() {
+    if (!Object.keys(store.positions).length) return;
+    const boxes = boundsFor(store.graph, store.positions);
+    // Curved parallel edges may extend beyond the card bounds.
+    const drawing = renderer.scene.getBBox();
+    const x = Math.min(boxes.x, drawing.x), y = Math.min(boxes.y, drawing.y);
+    const right = Math.max(boxes.x + boxes.width, drawing.x + drawing.width);
+    const bottom = Math.max(boxes.y + boxes.height, drawing.y + drawing.height);
+    viewport.fit({ x, y, width: right - x, height: bottom - y });
+  }
   /** @param {'undo' | 'redo'} direction */
   function restore(direction) {
     stop();
@@ -100,7 +113,7 @@ export function mountConnections(container, options) {
   }
   bindPointers(renderer.svg, viewport, {
     positions: () => store.positions,
-    start: id => { stop(); dragSnapshot = id ? snapshot() : null; },
+    start: id => { if (Object.keys(store.positions).length) stop(); dragSnapshot = id ? snapshot() : null; },
     move: (id, point) => { store.setPositions({ ...store.positions, [id]: point }); renderer.highlight(id); },
     end: (changed, id) => {
       if (changed && id && dragSnapshot) { history.push(dragSnapshot); updateHistory(); }

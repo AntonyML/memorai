@@ -18,12 +18,14 @@ export function bindPointers(svg, viewport, callbacks, signal) {
   /** @type {Point} */ let originalPosition = { x: 0, y: 0 };
   /** @type {Point} */ let clientStart = { x: 0, y: 0 };
   let suppressClick = false;
+  /** @type {string | null} */ let clickedId = null;
   const options = { signal };
   svg.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
     event.preventDefault();
     if (!pointers.size) {
       dragged = nodeId(event.target);
+      clickedId = null;
       changed = false; pinched = false;
       clientStart = { x: event.clientX, y: event.clientY };
       callbacks.start(dragged);
@@ -68,6 +70,7 @@ export function bindPointers(svg, viewport, callbacks, signal) {
     if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
     if (pointers.size) return;
     suppressClick = changed || pinched || event.type !== 'pointerup';
+    clickedId = suppressClick ? null : dragged;
     svg.classList.remove('is-panning');
     callbacks.end(changed, dragged);
     dragged = null;
@@ -77,7 +80,9 @@ export function bindPointers(svg, viewport, callbacks, signal) {
   svg.addEventListener('lostpointercapture', finish, options);
   svg.addEventListener('click', event => {
     if (suppressClick) { suppressClick = false; event.preventDefault(); return; }
-    const id = nodeId(event.target);
+    // Pointer capture retargets a mouse click to the SVG surface.
+    const id = nodeId(event.target) || clickedId;
+    clickedId = null;
     if (id) callbacks.activate(id);
   }, options);
   svg.addEventListener('pointerover', event => { if (!pointers.size) callbacks.highlight(nodeId(event.target)); }, options);

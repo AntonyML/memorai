@@ -1,0 +1,187 @@
+.connections-dialog {
+  width: min(1120px, calc(100% - 32px));
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.connections-dialog .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--connections-surface);
+  border-color: var(--connections-border);
+}
+
+.connections-dialog .connections-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+}
+
+.connections-dialog .connection-hint,
+.connections-dialog .graph-status,
+.connections-dialog .graph-controls label,
+.connections-dialog .graph-path {
+  color: var(--connections-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.connections-dialog .graph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+.connections-dialog .graph-controls label { display: flex; flex-direction: column; gap: 5px; }
+.connections-dialog .graph-controls label:first-child { flex: 1; min-width: 150px; }
+.connections-dialog .graph-status { padding: 7px 0; }
+
+.connections-dialog .graph-controls .setting-select,
+.connections-dialog .connections-tool {
+  min-height: 36px;
+  font-family: var(--connections-font);
+  font-size: 13px;
+  color: var(--connections-text);
+  border: 1px solid var(--connections-border);
+  border-radius: 7px;
+  background-color: var(--connections-surface);
+}
+
+.connections-dialog .connections-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.connections-dialog .connections-mode-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+
+.connections-dialog .connections-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 11px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.connections-dialog select.connections-tool { padding-right: 28px; }
+.connections-dialog .connections-tool:hover:not(:disabled) { background-color: var(--bg-hover); border-color: var(--connections-violet); }
+.connections-dialog .connections-tool:disabled { opacity: .46; cursor: default; }
+.connections-dialog .connections-tool-primary,
+.connections-dialog .connections-auto-layout,
+.connections-dialog .connections-tool[data-action="layout"] { background: var(--connections-violet); border-color: var(--connections-violet); color: var(--connections-canvas); font-weight: 600; }
+.connections-dialog .connections-tool-primary:hover:not(:disabled),
+.connections-dialog .connections-auto-layout:hover:not(:disabled),
+.connections-dialog .connections-tool[data-action="layout"]:hover:not(:disabled) { background: var(--connections-violet); filter: brightness(1.08); }
+.connections-dialog .connections-zoom,
+.connections-dialog .connections-zoom-value { min-width: 46px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.connections-dialog .connections-toolbar-hint { margin-left: auto; color: var(--connections-text); font-size: 13px; }
+
+.connections-dialog .graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  color: var(--connections-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.connections-dialog .graph-legend > span { display: inline-flex; align-items: center; gap: 8px; }
+.connections-dialog .graph-legend-line { display: inline-block; position: relative; width: 28px; border-top: 2px solid var(--connections-violet); }
+.connections-dialog .graph-legend-line::after { content: ''; position: absolute; right: -1px; top: -4px; width: 6px; height: 6px; transform: rotate(45deg); border-right: 2px solid var(--connections-violet); border-top: 2px solid var(--connections-violet); }
+.connections-dialog .graph-legend-line.related { border-color: var(--connections-slate); border-top-style: dashed; }
+.connections-dialog .graph-legend-line.related::after { border-color: var(--connections-slate); }
+.connections-dialog .graph-legend-line.depends-on { border-color: var(--connections-orange); border-top-style: dotted; }
+.connections-dialog .graph-legend-line.depends-on::after { border-color: var(--connections-orange); background: var(--connections-orange); width: 5px; height: 5px; }
+
+.connections-dialog .knowledge-graph {
+  position: relative;
+  height: clamp(280px, 48vh, 520px);
+  height: clamp(280px, 48dvh, 520px);
+  min-height: 280px;
+  max-height: none;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--connections-border);
+  border-radius: var(--connections-radius);
+  background: var(--connections-canvas);
+  isolation: isolate;
+}
+.connections-dialog .knowledge-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--connections-font);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  outline: none;
+}
+.connections-dialog .knowledge-svg:active { cursor: grabbing; }
+.connections-dialog .knowledge-svg:focus-visible { outline: 3px solid var(--connections-violet); outline-offset: -4px; }
+.connections-dialog .graph-empty-text { fill: var(--connections-text); font-size: 14px; }
+
+.connections-dialog .graph-connection { transition: opacity 100ms ease; }
+.connections-dialog .graph-edge { fill: none; stroke: var(--connections-violet); stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+.connections-dialog .graph-edge.related { stroke: var(--connections-slate); stroke-dasharray: 7 5; }
+.connections-dialog .graph-edge.depends-on { stroke: var(--connections-orange); stroke-dasharray: 2 5; stroke-linecap: round; }
+.connections-dialog .graph-arrow { fill: var(--connections-violet); }
+.connections-dialog .graph-arrow.related { fill: none; stroke: var(--connections-slate); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.connections-dialog .graph-arrow.depends-on { fill: var(--connections-orange); }
+.connections-dialog .graph-edge-hit { fill: none; stroke: transparent; stroke-width: 16; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: default; }
+.connections-dialog .graph-connection.is-highlighted .graph-edge { stroke-width: 2.6; }
+.connections-dialog .graph-connection.is-muted { opacity: .18; }
+.connections-dialog .graph-port { fill: var(--connections-surface); stroke: var(--connections-violet); stroke-width: 1.7; pointer-events: none; }
+.connections-dialog .graph-port.related { stroke: var(--connections-slate); }
+.connections-dialog .graph-port.depends-on { stroke: var(--connections-orange); }
+.connections-dialog .graph-port-hit { fill: transparent; stroke: none; cursor: default; }
+.connections-dialog .graph-connection.is-highlighted .graph-port { stroke-width: 2.6; }
+.connections-dialog .graph-edge-label-bg { fill: var(--connections-surface); stroke: var(--connections-border); stroke-width: 1; }
+.connections-dialog .graph-edge-label { fill: var(--connections-text); font-size: 13px; font-weight: 500; }
+
+.connections-dialog .graph-node { outline: none; cursor: pointer; transition: opacity 100ms ease; }
+.connections-dialog .graph-node .graph-node-card { fill: var(--connections-surface); stroke: var(--connections-node-border); stroke-width: 1.3; filter: drop-shadow(var(--connections-shadow)); }
+.connections-dialog .graph-node .graph-node-focus-ring { fill: none; stroke: var(--connections-violet); stroke-width: 3; visibility: hidden; }
+.connections-dialog .graph-node .graph-node-accent { fill: none; stroke: var(--connections-violet); stroke-width: 3; stroke-linecap: round; visibility: hidden; }
+.connections-dialog .graph-node.focused .graph-node-card { stroke: var(--connections-violet); stroke-width: 2; }
+.connections-dialog .graph-node.focused .graph-node-accent { visibility: visible; }
+.connections-dialog .graph-node:hover .graph-node-card,
+.connections-dialog .graph-node.is-highlighted .graph-node-card,
+.connections-dialog .graph-node.is-selected .graph-node-card { stroke: var(--connections-violet); stroke-width: 2; }
+.connections-dialog .graph-node:focus-visible .graph-node-focus-ring { visibility: visible; }
+.connections-dialog .graph-node.is-muted { opacity: .32; }
+.connections-dialog .graph-node-title { fill: var(--connections-text); font-size: 14px; font-weight: 600; }
+.connections-dialog .graph-node .graph-node-badge-bg { fill: var(--connections-badge); stroke: none; filter: none; }
+.connections-dialog .graph-node-badge-icon { fill: none; stroke: var(--connections-text); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.connections-dialog .graph-node-kind { fill: var(--connections-text); font-size: 13px; font-weight: 400; }
+
+.connections-dialog .graph-note-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.connections-dialog .graph-note-row { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; border: 1px solid var(--connections-border); border-radius: 9px; background: var(--connections-surface); padding: 5px; }
+.connections-dialog .graph-note-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; color: var(--connections-violet); font-size: 13px; line-height: 1.5; }
+.connections-dialog .graph-path { padding: 0 10px 5px; }
+.connections-dialog button:focus-visible,
+.connections-dialog select:focus-visible { outline: 3px solid var(--connections-violet); outline-offset: 2px; }
+
+@media (max-width: 768px) {
+  .connections-dialog { width: calc(100% - 16px); max-height: 94vh; max-height: 94dvh; }
+  .connections-dialog .connections-dialog-body { padding: 14px; }
+  .connections-dialog .connections-toolbar { gap: 6px; }
+  .connections-dialog .connections-tool { padding: 7px 9px; }
+  .connections-dialog .connections-toolbar-hint { flex-basis: 100%; margin-left: 0; }
+  .connections-dialog .graph-legend { gap: 8px 16px; }
+  .connections-dialog .graph-note-list { grid-template-columns: 1fr; }
+  .connections-dialog .graph-status { flex-basis: 100%; padding: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connections-dialog .graph-node,
+  .connections-dialog .graph-connection,
+  .connections-dialog .connections-tool { transition: none; }
+}

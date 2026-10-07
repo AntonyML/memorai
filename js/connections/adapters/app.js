@@ -22,7 +22,7 @@ export function adaptGraph(input, focus) {
   if (!record(input) || !Array.isArray(input.nodes) || !Array.isArray(input.edges)) throw new Error('Invalid graph');
   /** @type {Graph['nodes']} */
   const nodes = [];
-  const ids = new Set();
+  const ids = new Set(/** @type {string[]} */ ([]));
   for (const node of input.nodes) {
     if (!record(node) || typeof node.id !== 'string' || ids.has(node.id)) continue;
     ids.add(node.id);
@@ -41,6 +41,12 @@ export function adaptGraph(input, focus) {
     const second = JSON.stringify([b.source, b.target, b.type, b.explicit]);
     return first < second ? -1 : first > second ? 1 : 0;
   });
-  edges.forEach((edge, index) => { edge.id = 'edge-' + index; });
+  const duplicates = new Map(/** @type {[string, number][]} */ ([]));
+  for (const edge of edges) {
+    const key = JSON.stringify([edge.source, edge.target, edge.type, edge.explicit]);
+    const occurrence = duplicates.get(key) || 0;
+    edge.id = 'edge:' + key + ':' + occurrence;
+    duplicates.set(key, occurrence + 1);
+  }
   return { nodes, edges, focus: focus && ids.has(focus) ? focus : null };
 }

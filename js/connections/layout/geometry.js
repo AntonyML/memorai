@@ -192,6 +192,8 @@ function loop(source, target, from, to, slot, extra = 0) {
  */
 export function routeEdges(graph, positions) {
     const nodes = new Map(graph.nodes.map(node => [node.id, node]));
+    const bounds = boundsFor(graph, positions);
+    const escapeDistance = 3 * (Math.hypot(bounds.width, bounds.height) + LABEL_PADDING * 2);
     /** @type {Map<string, GraphEdge[]>} */
     const groups = new Map();
     for (const edge of graph.edges) {
@@ -221,7 +223,8 @@ export function routeEdges(graph, positions) {
             const distance = Math.hypot(dx, dy);
             const normal = distance ? { x: -dy / distance, y: dx / distance } : { x: 0, y: -1 };
             const spacing = Math.max(72, Math.min(120, distance * 0.2));
-            const offset = (slot - (group.length - 1) / 2) * spacing;
+            const offset = group.length === 1 ? Math.max(24, Math.min(40, distance * 0.08))
+                : (slot - (group.length - 1) / 2) * spacing;
             const isLoop = edge.source === edge.target || distance < 1;
             let curve = isLoop ? loop(source, target, from, to, slot) : quadratic(source, target, from, to, offset, normal);
             let label = labelOnCurve(curve, graph.nodes, positions);
@@ -230,7 +233,7 @@ export function routeEdges(graph, positions) {
             for (let retry = 1; !label.clear && retry <= 8; retry++) {
                 // A retry jump exceeds the whole slot band, so edges that need
                 // different retry counts cannot collapse onto the same curve.
-                const extra = retry * Math.max(96, spacing * (group.length + 1));
+                const extra = retry * Math.max(96, spacing * (group.length + 1), escapeDistance);
                 const side = offset < 0 ? -1 : 1;
                 curve = isLoop ? loop(source, target, from, to, slot, extra)
                     : quadratic(source, target, from, to, offset + side * extra, normal);

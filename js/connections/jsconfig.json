@@ -4,11 +4,12 @@
     "checkJs": true,
     "strict": true,
     "noEmit": true,
+    "types": [],
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["**/*.js"],
-  "exclude": ["workers"]
+  "exclude": ["workers", "export-pdf.js"]
 }

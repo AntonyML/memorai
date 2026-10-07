@@ -1,0 +1,35 @@
+.connections-dialog {
+  --connections-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --connections-text: var(--text);
+  --connections-surface: var(--bg);
+  --connections-canvas: var(--bg-alt);
+  --connections-badge: var(--bg-alt);
+  --connections-border: var(--border);
+  --connections-node-border: var(--text-muted);
+  --connections-violet: #c6a6ff;
+  --connections-slate: #b6c4dc;
+  --connections-orange: #ffbe80;
+  --connections-shadow: 0 2px 8px rgb(0 0 0 / 16%);
+  --connections-radius: 12px;
+  color: var(--connections-text);
+  font-family: var(--connections-font);
+}
+
+:is([data-theme="catppuccin-latte"], [data-theme$="-light"]) .connections-dialog {
+  --connections-violet: #6d39b8;
+  --connections-slate: #4b596f;
+  --connections-orange: #964708;
+  --connections-shadow: 0 2px 8px rgb(20 20 40 / 8%);
+}
+
+@supports (color: color-mix(in oklab, white, black)) {
+  .connections-dialog {
+    --connections-border: color-mix(in oklab, var(--text) 22%, var(--bg));
+    --connections-node-border: color-mix(in oklab, var(--text) 50%, var(--bg));
+  }
+}
+
+/* This theme's inherited blue needs a darker value on the badge surface. */
+[data-theme="tokyo-night-light"] .connections-dialog {
+  --connections-text: #3055ab;
+}

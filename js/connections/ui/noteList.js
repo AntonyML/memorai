@@ -3,6 +3,7 @@ import { adjacency, pathsFrom } from '../domain/graph.js';
 /** @param {HTMLElement} container @param {import('../types.js').Graph} graph @param {(id: string) => void} navigate @param {AbortSignal} signal */
 export function renderNoteList(container, graph, navigate, signal) {
   container.replaceChildren();
+  /** @type {Map<string, string[]>} */
   const paths = graph.focus ? pathsFrom(graph.focus, adjacency(graph)) : new Map();
   const lookup = new Map(graph.nodes.map(node => [node.id, node]));
   for (const node of graph.nodes) {

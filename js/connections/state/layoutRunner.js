@@ -15,6 +15,7 @@ export class LayoutRunner {
       this.#worker = worker; this.#resolve = resolve;
       const finish = () => { worker.terminate(); this.#worker = null; this.#resolve = null; };
       worker.addEventListener('message', event => {
+        if (this.#worker !== worker) return;
         /** @type {unknown} */ const data = event.data;
         if (!data || typeof data !== 'object') return;
         if ('result' in data) {
@@ -22,7 +23,10 @@ export class LayoutRunner {
           finish(); resolve(result);
         } else { finish(); reject(new Error('Unable to arrange this graph.')); }
       }, { once: true });
-      worker.addEventListener('error', () => { finish(); reject(new Error('Unable to arrange this graph.')); }, { once: true });
+      worker.addEventListener('error', () => {
+        if (this.#worker !== worker) return;
+        finish(); reject(new Error('Unable to arrange this graph.'));
+      }, { once: true });
       worker.postMessage({ id: 1, graph, mode });
     });
   }
