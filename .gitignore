@@ -1,2 +1,9 @@
 config.json
 .DS_Store
+.codegraph/
+node_modules/
+dist/
+.memorai/
+assets/vendor.js
+assets/vendor.js.*.tmp
+assets/.vendor-*.tmp

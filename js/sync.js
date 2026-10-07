@@ -17,7 +17,7 @@ window.App = window.App || {};
       headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
-    return fetch(url, opts).then(function (r) {
+    return (App.http ? App.http.fetch(url, opts) : fetch(url, opts)).then(function (r) {
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (e) {
           throw new Error(e.message || 'HTTP ' + r.status);
@@ -46,48 +46,13 @@ window.App = window.App || {};
     return new TextDecoder().decode(bytes);
   }
 
-  App.noteToMD = function noteToMD(note) {
-    var fm = '---\n';
-    fm += 'id: ' + note.id + '\n';
-    fm += 'title: "' + (note.title || '').replace(/"/g, '\\"') + '"\n';
-    fm += 'tags: [' + (note.tags || []).map(function (t) { return '"' + t + '"'; }).join(', ') + ']\n';
-    fm += 'pinned: ' + (note.pinned ? 'true' : 'false') + '\n';
-    fm += 'created: ' + new Date(note.createdAt).toISOString() + '\n';
-    fm += 'updated: ' + new Date(note.updatedAt).toISOString() + '\n';
-    fm += '---\n\n';
-    return fm + (note.content || '');
-  }
-
-  App.mdToNote = function mdToNote(md) {
-    if (md.indexOf('---') !== 0) return null;
-    var end = md.indexOf('---', 3);
-    if (end === -1) return null;
-    var fm = md.substring(3, end).trim();
-    var body = md.substring(end + 3).trim();
-    var note = { content: body, tags: [], pinned: false };
-    fm.split('\n').forEach(function (line) {
-      var idx = line.indexOf(':');
-      if (idx === -1) return;
-      var key = line.substring(0, idx).trim();
-      var val = line.substring(idx + 1).trim();
-      if (val.charAt(0) === '"') val = JSON.parse(val);
-      if (key === 'id') note.id = val;
-      else if (key === 'title') note.title = val;
-      else if (key === 'tags') note.tags = JSON.parse(val.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false')) || [];
-      else if (key === 'pinned') note.pinned = val === true || val === 'true';
-      else if (key === 'created') note.createdAt = new Date(val).getTime();
-      else if (key === 'updated') note.updatedAt = new Date(val).getTime();
-    });
-    if (!note.id) note.id = App.generateId();
-    if (!note.createdAt) note.createdAt = Date.now();
-    if (!note.updatedAt) note.updatedAt = Date.now();
-    return note;
-  }
+  App.noteToMD = App.knowledge.noteToMD;
+  App.mdToNote = App.knowledge.mdToNote;
 
   // Core push — mutates state.notes (updates _sha), pushes images. No UI, no toasts.
   App._pushCore = async function () {
     var s = state.settings;
-    App.oneTimeMigration();
+    await App.oneTimeMigration();
 
     var remoteSHAs = {};
     var remoteFiles = [];
@@ -147,7 +112,7 @@ window.App = window.App || {};
     if (!Array.isArray(files)) return { changed: false };
 
     var changed = false;
-    var idMap = new Map(state.notes.map(function (n) { return [n.id, n]; }));
+    var incoming = [];
 
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
@@ -158,6 +123,14 @@ window.App = window.App || {};
       var note = App.mdToNote(md);
       if (!note) continue;
       note._sha = fileData.sha;
+      incoming.push(note);
+    }
+
+    // Publish a complete batch: workspace polling must not see links before
+    // their newly downloaded targets. Flush typing before comparing timestamps.
+    if (state.saveTimeout) App.doAutoSave();
+    var idMap = new Map(state.notes.map(function (n) { return [n.id, n]; }));
+    incoming.forEach(function (note) {
       var existing = idMap.get(note.id);
       if (existing) {
         if (note.updatedAt > existing.updatedAt) {
@@ -170,10 +143,11 @@ window.App = window.App || {};
         idMap.set(note.id, note);
         changed = true;
       }
-    }
+    });
 
     if (changed) {
       state.notes.sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+      if (App.refreshWorkspaceView) App.refreshWorkspaceView();
     }
 
     return { changed: changed };
@@ -203,8 +177,10 @@ window.App = window.App || {};
   App.pushAllImages = async function () {
     var s = state.settings;
     if (!state.pendingImages.length) return;
-    for (var i = 0; i < state.pendingImages.length; i++) {
-      var img = state.pendingImages[i];
+    // Marking a durable image as uploaded replaces the live pending array.
+    var pending = state.pendingImages.slice();
+    for (var i = 0; i < pending.length; i++) {
+      var img = pending[i];
       if (img._pushed) continue;
       var base64 = img.dataUrl.split(',')[1];
       var path = '/images/' + img.filename;
@@ -212,6 +188,7 @@ window.App = window.App || {};
       try {
         await repoAPI(path, 'PUT', body);
         img._pushed = true;
+        if (App.markOfflineImagePushed) await App.markOfflineImagePushed(img.filename);
       } catch (e) {
         console.warn('Image push failed:', img.filename, e);
       }
@@ -317,11 +294,14 @@ window.App = window.App || {};
           }
         }
       } catch (e) { /* images/ may not exist */ }
+      if (App.clearOfflineImages) await App.clearOfflineImages();
+      else state.offlineImages = {};
       state.notes = [];
       state.pendingImages = [];
       state.activeNoteId = null;
       state.currentTags = [];
       App.saveNotes();
+      if (App.flushOfflineNotes) await App.flushOfflineNotes();
       App.showEmptyEditor();
       App.renderNotesList();
       App.updateNoteCount();
@@ -334,27 +314,44 @@ window.App = window.App || {};
     }
   };
 
-  App.oneTimeMigration = function () {
+  App.oneTimeMigration = async function () {
     var migrated = false;
-    state.notes.forEach(function (note) {
-      var content = note.content || '';
-      var re = /!\[([^\]]*)\]\((data:image\/[^)]+)\)/g;
-      var match;
-      while ((match = re.exec(content)) !== null) {
-        migrated = true;
-        var alt = match[1];
-        var dataUrl = match[2];
-        var filename = 'img-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) + '.png';
-        note.content = note.content.replace(match[0], '![' + alt + '](images/' + filename + ')');
-        state.pendingImages.push({ filename: filename, dataUrl: dataUrl });
+    if (state.saveTimeout) App.doAutoSave();
+    var ids = state.notes.map(function (note) { return note.id; });
+    try {
+      for (var i = 0; i < ids.length; i++) {
+        var note = state.notes.find(function (item) { return item.id === ids[i]; });
+        if (!note) continue;
+        var content = note.content || '';
+        var re = /!\[([^\]]*)\]\((data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/]+={0,2})\)/g;
+        var match;
+        while ((match = re.exec(content)) !== null) {
+          var ext = match[3] === 'jpeg' ? 'jpg' : match[3];
+          var uniqueId = App.generateId ? App.generateId() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+          var image = { filename: 'img-' + uniqueId + '.' + ext, dataUrl: match[2], name: match[1] || 'image' };
+          // Keep the embedded bytes until a durable local image exists.
+          if (App.persistOfflineImage) await App.persistOfflineImage(image);
+          else state.pendingImages.push(image);
+          if (state.saveTimeout) App.doAutoSave();
+          var current = state.notes.find(function (item) { return item.id === ids[i]; });
+          if (!current || current.content.indexOf(match[0]) === -1) continue;
+          var updated = current.content.replace(match[0], '![' + match[1] + '](images/' + image.filename + ')');
+          if (App.updateNote) App.updateNote(current.id, { content: updated });
+          else {
+            current.content = updated;
+            current.updatedAt = Math.max(Date.now(), current.updatedAt + 1);
+            App.saveNotes();
+          }
+          migrated = true;
+        }
       }
-    });
-    if (migrated) {
-      App.saveNotes();
+    } finally {
+      if (migrated && App.refreshWorkspaceView) App.refreshWorkspaceView();
     }
   };
 
   App.exportNotes = function () {
+    App.doAutoSave();
     var data = JSON.stringify(state.notes, null, 2);
     var blob = new Blob([data], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -372,14 +369,18 @@ window.App = window.App || {};
       try {
         var imported = JSON.parse(e.target.result);
         if (!Array.isArray(imported)) throw new Error('Invalid format');
+        App.doAutoSave();
         var idMap = new Map(state.notes.map(function (n) { return [n.id, n]; }));
         imported.forEach(function (n) {
           if (!n.id) n.id = App.generateId();
           if (!Array.isArray(n.tags)) n.tags = [];
-          n.updatedAt = Date.now();
+          n = App.knowledge.normalizeNote(n);
+          var previous = idMap.get(n.id);
+          n.updatedAt = Math.max(Date.now(), previous ? previous.updatedAt + 1 : 0, n.updatedAt);
           idMap.set(n.id, n);
         });
-        state.notes = Array.from(idMap.values());
+        var merged = App.knowledge.validateGraph(Array.from(idMap.values()));
+        state.notes = merged;
         state.notes.sort(function (a, b) {
           if (a.pinned && !b.pinned) return -1;
           if (!a.pinned && b.pinned) return 1;
@@ -388,12 +389,13 @@ window.App = window.App || {};
         App.saveNotes();
         App.renderNotesList();
         App.updateNoteCount();
+        if (App.refreshWorkspaceView) App.refreshWorkspaceView();
         if (state.activeNoteId && !state.notes.find(function (n) { return n.id === state.activeNoteId; })) {
           App.showEmptyEditor();
         }
         App.toast('Imported ' + imported.length + ' note(s)!', 'success');
       } catch (err) {
-        App.toast('Import failed: invalid file format', 'error');
+        App.toast('Import failed: ' + err.message, 'error');
       }
     };
     reader.readAsText(file);

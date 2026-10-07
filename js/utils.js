@@ -10,12 +10,22 @@ window.App = window.App || {};
   };
 
   App.escapeHtml = function (str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    var value = str == null ? '' : String(str);
+    if (App.libs && App.libs.lodash) return App.libs.lodash.escape(value);
+    var entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return value.replace(/[&<>"']/g, function (character) { return entities[character]; });
   };
 
+  function localDateTime(ts) {
+    var luxon = App.libs && App.libs.luxon;
+    if (!luxon) return null;
+    var date = luxon.DateTime.fromJSDate(new Date(ts));
+    return date.isValid ? date : null;
+  }
+
   App.formatDate = function (ts) {
+    var date = localDateTime(ts);
+    if (date) return date.toLocaleString({ month: 'short' }) + ' ' + date.day + ', ' + date.year;
     var d = new Date(ts);
     var month = d.toLocaleDateString(undefined, { month: 'short' });
     var day = d.getDate();
@@ -23,13 +33,19 @@ window.App = window.App || {};
   };
 
   App.formatTime = function (ts) {
+    var date = localDateTime(ts);
+    if (date) {
+      return state.settings.timeFormat === '24h'
+        ? date.toFormat('HH:mm')
+        : date.toLocaleString({ hour: 'numeric', minute: '2-digit', hour12: true });
+    }
     var d = new Date(ts);
     if (state.settings.timeFormat === '24h') {
       var h = d.getHours().toString().padStart(2, '0');
       var m = d.getMinutes().toString().padStart(2, '0');
       return h + ':' + m;
     }
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   App.formatDateTime = function (ts) {
@@ -62,11 +78,34 @@ window.App = window.App || {};
     }
 
     dom.toastContainer.appendChild(el);
+    var anime = App.libs && App.libs.anime;
+    var reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var animation;
+    if (reducedMotion || anime) el.style.animation = 'none';
+    if (anime && !reducedMotion) {
+      try {
+        animation = anime.animate(el, { opacity: [0, 1], translateY: [8, 0], duration: 200, ease: 'outQuad' });
+      } catch (_) {
+        el.style.opacity = '';
+        el.style.transform = '';
+      }
+    }
     var duration = type === 'error' ? 8000 : 3000;
     setTimeout(function () {
-      el.style.opacity = '0';
-      el.style.transition = 'opacity 0.25s ease';
-      setTimeout(function () { el.remove(); }, 250);
+      if (animation) animation.cancel();
+      if (reducedMotion) { el.remove(); return; }
+      try {
+        animation = anime && anime.animate(el, { opacity: 0, translateY: 4, duration: 200, ease: 'inQuad' });
+      } catch (_) { animation = null; }
+      if (!animation) {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s ease';
+      }
+      // Cleanup is independent of animation callbacks, which may pause in a hidden tab.
+      setTimeout(function () {
+        if (animation) animation.cancel();
+        el.remove();
+      }, 250);
     }, duration);
   };
 })();

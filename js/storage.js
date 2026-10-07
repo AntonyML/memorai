@@ -93,6 +93,7 @@ window.App = window.App || {};
     if (el) el.setAttribute('content', value);
   }
   App.loadNotes = function () {
+    App.notesBackupAvailable = false;
     try {
       var raw = localStorage.getItem(App.STORE_NOTES);
       if (raw) {
@@ -103,18 +104,33 @@ window.App = window.App || {};
           if (!n.updatedAt) n.updatedAt = Date.now();
           if (n.pinned === undefined) n.pinned = false;
           if (!Array.isArray(n.tags)) n.tags = [];
+          if (!n.kind) n.kind = 'note';
+          if (!Array.isArray(n.links)) n.links = [];
         });
+        App.notesBackupAvailable = true;
       }
     } catch (e) {
       state.notes = [];
     }
   };
 
-  App.saveNotes = function () {
+  App.cacheNotesBackup = function () {
     try {
       localStorage.setItem(App.STORE_NOTES, JSON.stringify(state.notes));
+      App.notesBackupAvailable = true;
+      return true;
     } catch (e) {
-      App.toast && App.toast('Failed to save notes: storage full', 'error');
+      if (!App.offlineStatus || App.offlineStatus.mode === 'fallback') {
+        App.toast && App.toast('Failed to save browser backup: storage full', 'error');
+      }
+      return false;
     }
+  };
+
+  App.saveNotes = function () {
+    App.cacheNotesBackup();
+    if (App.persistOfflineNotes) App.persistOfflineNotes().catch(function () {});
+    if (App.renderConnections) App.renderConnections();
+    if (App.queueWorkspaceSave) App.queueWorkspaceSave();
   };
 })();

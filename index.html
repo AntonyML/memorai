@@ -50,6 +50,14 @@
       </button>
       <h1 class="app-title">memorai</h1>
       <div class="header-actions">
+        <button class="btn-text" id="connectionsToggle" aria-haspopup="dialog" aria-label="Connections">
+          <i data-lucide="git-branch" width="18" height="18"></i>
+          <span>Connections</span>
+        </button>
+        <button class="btn-text" id="insightsToggle" aria-haspopup="dialog" aria-label="Notebook insights">
+          <i data-lucide="bar-chart" width="18" height="18"></i>
+          <span>Insights</span>
+        </button>
         <button class="btn-icon" id="themeToggle" aria-label="Toggle theme">
           <i data-lucide="moon" id="themeToggleIcon" width="20" height="20"></i>
         </button>
@@ -84,6 +92,8 @@
             <span id="syncLabel">Sync with Repo</span>
           </button>
           <span class="note-count" id="noteCount">0 notes</span>
+          <span class="offline-status" id="offlineStatus" aria-live="polite">Opening offline storage…</span>
+          <span class="workspace-status" id="workspaceStatus" aria-live="polite">Browser storage</span>
         </div>
       </aside>
 
@@ -179,8 +189,13 @@
           </div>
           <div class="editor-body">
             <textarea id="noteContent" class="note-content-input" placeholder="Write markdown..."></textarea>
-            <div class="note-preview hidden" id="notePreview"></div>
+            <div class="note-preview hidden" id="notePreview" tabindex="-1"></div>
           </div>
+          <nav class="note-navigation hidden" id="noteNavigation" aria-label="Browse notes" hidden>
+            <button class="btn-text" id="notePreviousBtn" type="button" aria-label="Previous note"><i data-lucide="arrow-left" width="16" height="16"></i><span>Previous</span></button>
+            <span class="note-navigation-hint" id="noteNavigationHint" aria-live="polite"></span>
+            <button class="btn-text" id="noteNextBtn" type="button" aria-label="Next note"><span>Next</span><i data-lucide="arrow-right" width="16" height="16"></i></button>
+          </nav>
           <div class="tags-area" id="tagsArea">
             <div class="tags-input-wrap">
               <i data-lucide="tag" width="14" height="14"></i>
@@ -191,6 +206,48 @@
             </div>
             <div class="tags-list" id="tagsList"></div>
           </div>
+          <section class="connections-area" aria-label="Note connections">
+            <details id="connectionsDetails">
+              <summary class="connections-summary">
+                <span>Connections <span class="connections-count" id="connectionsCount">0</span></span>
+                <span class="connections-summary-hint">Context, links &amp; backlinks</span>
+              </summary>
+              <div class="connections-body">
+                <div class="connections-heading-row">
+                  <label class="connection-kind-label" for="noteKind">Note type
+                    <select id="noteKind" class="setting-select connection-kind-select">
+                      <option value="note">Note</option>
+                      <option value="context">Context</option>
+                      <option value="project">Project</option>
+                      <option value="skill">Skill</option>
+                      <option value="decision">Decision</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="reference">Reference</option>
+                    </select>
+                  </label>
+                  <button class="btn-text" id="noteConnectionsMap">View map</button>
+                </div>
+                <form class="connection-form" id="connectionForm">
+                  <label for="connectionType">Relationship
+                    <select id="connectionType" class="setting-select">
+                      <option value="part-of">Part of</option>
+                      <option value="related">Related to</option>
+                      <option value="depends-on">Depends on</option>
+                    </select>
+                  </label>
+                  <label for="connectionTarget">Connect to
+                    <select id="connectionTarget" class="setting-select"></select>
+                  </label>
+                  <button type="submit" class="btn-secondary" id="connectionAdd">Add link</button>
+                </form>
+                <div class="connection-lists">
+                  <div><h3>Links from this note</h3><ul class="connection-list" id="outgoingConnections"></ul></div>
+                  <div><h3>Backlinks</h3><ul class="connection-list" id="incomingConnections"></ul></div>
+                </div>
+                <p class="connection-hint">Use a context note to connect related projects and skills. Tags organize notes; links connect them. Links written as [[note-id|label]] also appear here.</p>
+              </div>
+            </details>
+          </section>
           <div class="editor-footer">
             <span class="last-modified" id="lastModified"></span>
             <span class="word-count" id="wordCount"></span>
@@ -313,20 +370,71 @@
       </div>
     </div>
 
+    <dialog class="connections-dialog" id="connectionsDialog" aria-labelledby="connectionsDialogTitle" aria-describedby="connectionsDialogDescription">
+      <div class="modal-header">
+        <h2 id="connectionsDialogTitle">Connections</h2>
+        <button class="btn-icon" id="connectionsClose" aria-label="Close connections"><i data-lucide="x" width="20" height="20"></i></button>
+      </div>
+      <div class="connections-dialog-body">
+        <p class="connection-hint" id="connectionsDialogDescription">Follow the context between your notes. Two notes can share a context without having a direct link to each other.</p>
+        <div class="graph-controls">
+          <label for="graphFocus">Show
+            <select id="graphFocus" class="setting-select"><option value="">All notes</option></select>
+          </label>
+          <label for="graphDepth">Distance
+            <select id="graphDepth" class="setting-select">
+              <option value="1">Direct links</option>
+              <option value="2" selected>Up to 2 links</option>
+              <option value="3">Up to 3 links</option>
+            </select>
+          </label>
+          <p class="graph-status" id="graphStatus" aria-live="polite"></p>
+        </div>
+        <div class="graph-legend" aria-label="Relationship legend">
+          <span><span class="graph-legend-line part-of"></span>Part of → context</span>
+          <span><span class="graph-legend-line related"></span>Related to</span>
+          <span><span class="graph-legend-line depends-on"></span>Depends on → prerequisite</span>
+        </div>
+        <div class="knowledge-graph" id="knowledgeGraph"></div>
+        <div class="graph-note-list" id="graphNoteList" aria-label="Notes and paths in this map"></div>
+      </div>
+    </dialog>
+    <dialog class="insights-dialog" id="insightsDialog" aria-labelledby="insightsDialogTitle" aria-describedby="insightsDescription">
+      <div class="modal-header">
+        <h2 id="insightsDialogTitle">Notebook insights</h2>
+        <button class="btn-icon" id="insightsClose" aria-label="Close insights"><i data-lucide="x" width="20" height="20"></i></button>
+      </div>
+      <div class="insights-body">
+        <p class="connection-hint" id="insightsDescription">See the shape of your notebook and how much of it is connected. Counts cover all notes, including those outside the current search.</p>
+        <div class="insights-summary" id="insightsSummary" aria-live="polite"></div>
+        <p class="connection-hint" id="insightsEmpty" hidden>No notes yet. Create a note to start your notebook.</p>
+        <div class="insights-chart-wrap"><canvas id="insightsChart" role="img" aria-label="Notes by type. Counts appear in the table below." aria-describedby="insightsTable"></canvas></div>
+        <table class="insights-table" id="insightsTable">
+          <caption>Notes by type</caption>
+          <thead><tr><th scope="col">Type</th><th scope="col">Notes</th></tr></thead>
+          <tbody id="insightsBreakdown"></tbody>
+        </table>
+      </div>
+    </dialog>
     <div class="toast-container" id="toastContainer"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <script src="assets/vendor.js"></script>
   <script src="js/state.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/notes.js"></script>
+  <script src="js/knowledge.js"></script>
+  <script src="js/http.js"></script>
+  <script src="js/offline.js"></script>
   <script src="js/sync.js"></script>
   <script src="js/image.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/connections.js"></script>
+  <script src="js/insights.js"></script>
+  <script src="js/gestures.js"></script>
+  <script src="js/workspace.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

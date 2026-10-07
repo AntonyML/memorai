@@ -28,7 +28,9 @@ window.App = window.App || {};
   App.init = function () {
     App.loadSettings();
     App.loadNotes();
-    App.loadServerConfig().then(function () {
+    Promise.all([App.loadServerConfig(), App.initOfflineStorage()]).then(function () {
+      return App.initWorkspace();
+    }).then(function () {
       App.finishInit();
     }).catch(function () {
       App.finishInit();
@@ -38,6 +40,9 @@ window.App = window.App || {};
   App.finishInit = function () {
     App.applyTheme();
     App.bindEvents();
+    App.initConnections();
+    App.initInsights();
+    App.initGestures();
     App.renderNotesList();
     App.updateNoteCount();
     App.configureMarked();
@@ -46,6 +51,8 @@ window.App = window.App || {};
     App.updateThemeIcon();
     App.updateRepoDependentUI();
     App.routeFromHash();
+    App.startWorkspacePolling();
+    App.startOfflineSubscriptions();
 
     // Silent background pull on app load — fetch latest notes without blocking the UI
     if (state.settings.githubToken && state.settings.repo) {
@@ -121,6 +128,7 @@ window.App = window.App || {};
 
     dom.exportMdBtn.addEventListener('click', function () {
       if (!state.activeNoteId) return;
+      App.doAutoSave();
       var note = state.notes.find(function (n) { return n.id === state.activeNoteId; });
       if (!note) return;
       var md = App.noteToMD(note);
@@ -276,7 +284,7 @@ window.App = window.App || {};
       }
       status.textContent = 'Checking…';
       status.className = 'github-status';
-      fetch('https://api.github.com/repos/' + repo + '/contents/', {
+      App.http.fetch('https://api.github.com/repos/' + repo + '/contents/', {
         headers: { Authorization: 'token ' + token }
       }).then(function (r) {
         if (r.ok || r.status === 404) {

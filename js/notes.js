@@ -11,6 +11,8 @@ window.App = window.App || {};
       title: '',
       content: '',
       tags: [],
+      kind: 'note',
+      links: [],
       pinned: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -28,11 +30,13 @@ window.App = window.App || {};
     var idx = state.notes.findIndex(function (n) { return n.id === id; });
     if (idx === -1) return;
     var note = state.notes[idx];
-    var changed = ('title' in updates && updates.title !== note.title) ||
-                  ('content' in updates && updates.content !== note.content);
+    var changed = Object.keys(updates).some(function (key) {
+      return JSON.stringify(updates[key]) !== JSON.stringify(note[key]);
+    });
+    if (!changed) return;
     Object.assign(note, updates);
     if (changed) {
-      note.updatedAt = Date.now();
+      note.updatedAt = Math.max(Date.now(), note.updatedAt + 1);
       if (!note.pinned) {
         state.notes.splice(idx, 1);
         var insertIdx = state.notes.findIndex(function (n) { return !n.pinned; });
@@ -45,6 +49,13 @@ window.App = window.App || {};
   App.deleteNote = function (id) {
     if (!confirm('Delete this note?')) return;
     state.notes = state.notes.filter(function (n) { return n.id !== id; });
+    state.notes.forEach(function (note) {
+      var links = (note.links || []).filter(function (link) { return link.target !== id; });
+      if (links.length !== (note.links || []).length) {
+        note.links = links;
+        note.updatedAt = Math.max(Date.now(), note.updatedAt + 1);
+      }
+    });
     App.saveNotes();
     if (state.activeNoteId === id) {
       state.activeNoteId = null;

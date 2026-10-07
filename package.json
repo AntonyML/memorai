@@ -1,0 +1,34 @@
+{
+  "name": "memorai",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "scripts": {
+    "dev": "bun --watch scripts/server.js",
+    "start": "bun scripts/server.js",
+    "build": "bun scripts/build.js",
+    "preview": "bun scripts/server.js --preview",
+    "test": "bun test",
+    "notes": "bun scripts/notes-cli.js",
+    "vendor": "bun scripts/vendor.js"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "animejs": "4.5.0",
+    "axios": "1.20.0",
+    "chart.js": "4.5.1",
+    "dexie": "4.4.6",
+    "dompurify": "3.4.16",
+    "hammerjs": "2.0.8",
+    "highlight.js": "11.12.0",
+    "lodash": "4.18.1",
+    "luxon": "3.7.2",
+    "marked": "15.0.12",
+    "rxdb": "17.6.0"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5"
+  }
+}

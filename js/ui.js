@@ -5,7 +5,7 @@ window.App = window.App || {};
   var dom = App.dom;
   var state = App.state;
 
-  App.renderNotesList = function () {
+  App.getFilteredNotes = function () {
     var query = (dom.searchInput.value || '').toLowerCase().trim();
     var sorted = App.getSortedNotes();
     var filtered = sorted;
@@ -16,6 +16,14 @@ window.App = window.App || {};
                (n.tags || []).some(function (t) { return t.toLowerCase().indexOf(query) !== -1; });
       });
     }
+    return filtered;
+  };
+
+  App.renderNotesList = function () {
+    var query = (dom.searchInput.value || '').toLowerCase().trim();
+    var filtered = App.getFilteredNotes();
+    if (App.refreshNoteNavigation) App.refreshNoteNavigation();
+    if (App.refreshInsights) App.refreshInsights();
     dom.notesList.innerHTML = '';
     if (filtered.length === 0) {
       dom.notesList.innerHTML = '\n        <div class="empty-state">\n          <i data-lucide="file-text" width="48" height="48"></i>\n          <p>' + (query ? 'No matching notes' : 'No notes yet') + '</p>\n          <span>' + (query ? 'Try a different search' : 'Create one to get started') + '</span>\n        </div>';
@@ -53,11 +61,13 @@ window.App = window.App || {};
     if (state.isPreview) { App.switchToPreview(true); } else { App.switchToEdit(); }
     dom.editorEmpty.classList.add('hidden');
     dom.editorContent.classList.remove('hidden');
-    dom.noteTitle.focus();
+    if (state.isPreview) { dom.notePreview.focus({ preventScroll: true }); }
+    else { dom.noteTitle.focus(); }
     App.updatePinButton();
     App.renderNotesList();
     if (window.innerWidth <= 768) App.closeSidebar();
     history.replaceState(null, '', '#' + id);
+    if (App.renderConnections) App.renderConnections();
   };
 
   App.showEmptyEditor = function () {
@@ -73,6 +83,7 @@ window.App = window.App || {};
     dom.editorContent.classList.add('hidden');
     App.renderNotesList();
     history.replaceState(null, '', window.location.pathname);
+    if (App.renderConnections) App.renderConnections();
   };
 
   App.updatePinButton = function () {
@@ -118,6 +129,7 @@ window.App = window.App || {};
     if (dom.themeSelect) dom.themeSelect.value = App.themeToDropdownValue(theme);
     App.updateThemeIcon();
     App.saveSettings();
+    if (App.refreshInsights) App.refreshInsights();
   };
 
   App.updateThemeIcon = function () {
@@ -141,6 +153,7 @@ window.App = window.App || {};
     dom.notePreview.classList.add('hidden');
     dom.editBtn.classList.add('active');
     dom.previewBtn.classList.remove('active');
+    if (App.refreshNoteNavigation) App.refreshNoteNavigation();
   };
 
   App.switchToPreview = function (skipSave) {
@@ -153,12 +166,14 @@ window.App = window.App || {};
       html = DOMPurify.sanitize(html);
     }
     dom.notePreview.innerHTML = html;
+    App.renderWikiLinks(dom.notePreview);
     dom.noteContent.classList.add('hidden');
     dom.notePreview.classList.remove('hidden');
     dom.editBtn.classList.remove('active');
     dom.previewBtn.classList.add('active');
     App.refreshIcons(dom.notePreview);
     App.addCodeEnhancements(dom.notePreview);
+    if (App.refreshNoteNavigation) App.refreshNoteNavigation();
   };
 
   App.addCodeEnhancements = function (container) {
@@ -220,9 +235,15 @@ window.App = window.App || {};
 
   App.rewriteImageURLs = function (html) {
     var s = state.settings;
-    if (!s.repo) return html;
-    var base = 'https://raw.githubusercontent.com/' + s.repo + '/' + s.branch + '/';
-    return html.replace(/src="images\/([^"]+)"/g, 'src="' + base + 'images/$1"');
+    var base = s.repo ? 'https://raw.githubusercontent.com/' + s.repo + '/' + s.branch + '/' : '';
+    var images = state.offlineImages || {};
+    return html.replace(/src="images\/([^"]+)"/g, function (source, filename) {
+      var cached = Object.prototype.hasOwnProperty.call(images, filename) && images[filename];
+      if (cached && /^data:image\/(?:png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(cached.dataUrl)) {
+        return 'src="' + cached.dataUrl + '"';
+      }
+      return base ? 'src="' + base + 'images/' + filename + '"' : source;
+    });
   };
 
   App.togglePreview = function () {
@@ -235,6 +256,8 @@ window.App = window.App || {};
   };
 
   App.doAutoSave = function () {
+    if (state.saveTimeout) clearTimeout(state.saveTimeout);
+    state.saveTimeout = null;
     if (!state.activeNoteId) return;
     var title = dom.noteTitle.value;
     var content = dom.noteContent.value;
@@ -242,6 +265,39 @@ window.App = window.App || {};
     App.updateNote(state.activeNoteId, { title: title, content: content, tags: tags });
     App.renderNotesList();
     App.updateFooterMeta();
+  };
+
+  App.renderWikiLinks = function (container) {
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    var texts = [];
+    while (walker.nextNode()) {
+      if (!walker.currentNode.parentElement.closest('pre, code, a') && walker.currentNode.nodeValue.indexOf('[[') !== -1) texts.push(walker.currentNode);
+    }
+    texts.forEach(function (textNode) {
+      var value = textNode.nodeValue;
+      var pattern = /\[\[([a-zA-Z0-9][a-zA-Z0-9_-]{0,127})(?:\|([^\]\n]*))?\]\]/g;
+      var match;
+      var start = 0;
+      var fragment = document.createDocumentFragment();
+      while ((match = pattern.exec(value))) {
+        fragment.appendChild(document.createTextNode(value.slice(start, match.index)));
+        var note = state.notes.find(function (item) { return item.id === match[1]; });
+        var element = document.createElement(note ? 'a' : 'span');
+        element.textContent = match[2] || (note && note.title) || match[1];
+        if (note) {
+          element.href = '#' + note.id;
+          element.className = 'note-wiki-link';
+          (function (id) { element.addEventListener('click', function (event) { event.preventDefault(); App.openNote(id); }); })(note.id);
+        } else {
+          element.className = 'unresolved-note-link';
+          element.title = 'Missing note: ' + match[1];
+        }
+        fragment.appendChild(element);
+        start = pattern.lastIndex;
+      }
+      fragment.appendChild(document.createTextNode(value.slice(start)));
+      textNode.replaceWith(fragment);
+    });
   };
 
   App.toggleSidebar = function () {

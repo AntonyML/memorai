@@ -6,32 +6,46 @@ window.App = window.App || {};
   var state = App.state;
 
   App.resizeImage = function (file, maxW, maxH) {
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
       var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read the image file.')); };
+      reader.onabort = function () { reject(new Error('Image reading was cancelled.')); };
       reader.onload = function (e) {
-        var img = new Image();
+        var img;
+        try { img = new Image(); } catch (error) { reject(error); return; }
+        img.onerror = function () { reject(new Error('Could not decode the image file.')); };
         img.onload = function () {
-          var w = img.width;
-          var h = img.height;
-          if (w <= maxW && h <= maxH) { resolve(e.target.result); return; }
-          var ratio = Math.min(maxW / w, maxH / h);
-          var canvas = document.createElement('canvas');
-          canvas.width = Math.round(w * ratio);
-          canvas.height = Math.round(h * ratio);
-          var ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL(file.type || 'image/png', 0.85));
+          try {
+            var w = img.width;
+            var h = img.height;
+            if (!w || !h) throw new Error('The image has no usable dimensions.');
+            var raster = /^data:image\/(?:png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/;
+            if (w <= maxW && h <= maxH && raster.test(e.target.result)) { resolve(e.target.result); return; }
+            var ratio = Math.min(1, maxW / w, maxH / h);
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(w * ratio));
+            canvas.height = Math.max(1, Math.round(h * ratio));
+            var ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Image resizing is unavailable.');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            // Rasterize SVG and unsupported formats; never persist executable SVG markup.
+            var mime = /^(?:image\/jpeg|image\/webp)$/.test(file.type) ? file.type : 'image/png';
+            var dataUrl = canvas.toDataURL(mime, 0.85);
+            if (!raster.test(dataUrl)) throw new Error('Could not encode the resized image.');
+            resolve(dataUrl);
+          } catch (error) { reject(error); }
         };
-        img.src = e.target.result;
+        try { img.src = e.target.result; } catch (error) { reject(error); }
       };
       reader.readAsDataURL(file);
     });
   };
 
   App.handleImageFile = function (file) {
-    if (!file || !file.type.match(/^image\//)) return false;
+    if (!file || typeof file.type !== 'string' || !/^image\//.test(file.type) || !state.activeNoteId) return false;
+    var noteId = state.activeNoteId;
     App.toast('Processing image\u2026', 'info');
-    App.resizeImage(file, 1200, 1200).then(function (dataUrl) {
+    App.resizeImage(file, 1200, 1200).then(async function (dataUrl) {
       var now = new Date();
       var ts = now.getFullYear() +
         ('' + (now.getMonth() + 1)).padStart(2, '0') +
@@ -39,15 +53,31 @@ window.App = window.App || {};
         ('' + now.getHours()).padStart(2, '0') +
         ('' + now.getMinutes()).padStart(2, '0') +
         ('' + now.getSeconds()).padStart(2, '0');
-      var ext = (file.type.match(/png/) ? 'png' : 'jpg');
-      var filename = ts + '.' + ext;
+      var mime = dataUrl.match(/^data:image\/(png|jpeg|webp|gif|avif);base64,/);
+      if (!mime) throw new Error('The processed image format is unsupported.');
+      var ext = mime[1] === 'jpeg' ? 'jpg' : mime[1];
+      var filename = ts + '-' + App.generateId() + '.' + ext;
       var name = file.name || 'image';
-      name = name.replace(/[\[\]()]/g, '_');
-      state.pendingImages.push({ filename: filename, dataUrl: dataUrl, name: name });
-      App.insertMarkdownAtCursor('\n![' + name + '](images/' + filename + ')\n');
-      dom.noteContent.focus();
-      App.scheduleSave();
-      App.toast('Image inserted', 'success');
+      name = name.replace(/[\[\]()\r\n]/g, '_');
+      var image = { filename: filename, dataUrl: dataUrl, name: name };
+      if (App.persistOfflineImage) await App.persistOfflineImage(image);
+      else state.pendingImages.push(image);
+      var markdown = '\n![' + name + '](images/' + filename + ')\n';
+      if (state.activeNoteId === noteId) {
+        App.insertMarkdownAtCursor(markdown);
+        dom.noteContent.focus();
+        App.scheduleSave();
+        App.toast('Image inserted', 'success');
+      } else {
+        var originalNote = state.notes.find(function (note) { return note.id === noteId; });
+        if (originalNote) {
+          App.updateNote(noteId, { content: originalNote.content + markdown });
+          App.renderNotesList();
+          App.toast('Image inserted in the original note', 'success');
+        } else App.toast('Image saved locally; the original note was deleted', 'info');
+      }
+    }).catch(function (error) {
+      App.toast('Image could not be inserted: ' + (error.message || 'Unknown error'), 'error');
     });
     return true;
   };
