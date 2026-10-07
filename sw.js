@@ -1,4 +1,4 @@
-var CACHE = 'memorai-v0.3.2';
+var CACHE = 'memorai-v0.3.3';
 var URLS = [
   // Cache the complete Connections module, styles and worker for first-use offline.
   // Includes responsive fitting, semantic curves and contrast-safe theme tokens.

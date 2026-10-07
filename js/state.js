@@ -5,7 +5,7 @@ window.App = window.App || {};
 
   App.STORE_NOTES = 'memorai_notes';
   App.STORE_SETTINGS = 'memorai_settings';
-  App.VERSION = '0.3.2';
+  App.VERSION = '0.3.3';
 
   App.DEFAULT_SETTINGS = {
     theme: 'catppuccin-macchiato',

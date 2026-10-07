@@ -2,6 +2,10 @@
 
 Historial de cambios; el funcionamiento actual está en [README.md](README.md).
 
+## 0.3.3
+
+- Modo pantalla completa en el mapa Connections (botón en toolbar y atajo Esc para salir); invalidación de caché del Service Worker.
+
 ## 0.3.2
 
 - Borrado con confirmación visual asíncrona; modales comparten foco, teclado y cierre, sin apilarse.
